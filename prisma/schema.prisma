@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Paper {
+  id        Int        @id @default(autoincrement())
+  year      Int
+  name      String     // e.g., "GS1", "CSAT"
+  set       String?    // e.g., "A", "B", "C", "D"
+  questions Question[]
+  imports   Import[]
+
+  @@unique([year, name, set])
+}
+
+model Category {
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
+  subcategories Subcategory[]
+  questions     Question[]
+}
+
+model Subcategory {
+  id         Int        @id @default(autoincrement())
+  name       String
+  categoryId Int
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  questions  Question[]
+
+  @@unique([name, categoryId])
+}
+
+model Tag {
+  id        Int           @id @default(autoincrement())
+  name      String        @unique
+  questions QuestionTag[]
+}
+
+model Question {
+  id                 Int           @id @default(autoincrement())
+  questionNo         Int
+  text               String
+  optionA            String?
+  optionB            String?
+  optionC            String?
+  optionD            String?
+  correctAnswer      String?
+  
+  explanation        String?
+  explanationSource  String?
+  reviewed           Boolean       @default(false)
+  
+  questionImage      String?
+  optionImage        String?
+  imageType          String?       // e.g., "MAP", "CHART", "TABLE", "DIAGRAM", "GENERAL"
+  imageBoundingBox   String?       // JSON string storing coordinates or OCR bbox
+
+  parseConfidence    Float         @default(0.0)
+  categoryConfidence Float         @default(0.0)
+  answerConfidence   Float         @default(0.0)
+
+  status             String        @default("NEEDS_REVIEW") // NEEDS_REVIEW or APPROVED
+  
+  paperId            Int
+  paper              Paper         @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  
+  categoryId         Int?
+  category           Category?     @relation(fields: [categoryId], references: [id])
+  
+  subcategoryId      Int?
+  subcategory        Subcategory?  @relation(fields: [subcategoryId], references: [id])
+  
+  tags               QuestionTag[]
+  reviewQueue        ReviewQueue?
+
+  @@unique([paperId, questionNo])
+}
+
+model QuestionTag {
+  questionId Int
+  tagId      Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+}
+
+model Import {
+  id          Int         @id @default(autoincrement())
+  paperId     Int
+  paper       Paper       @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  status      String      // SUCCESS, PARTIAL, FAILED
+  logs        ImportLog[]
+}
+
+model ImportLog {
+  id        Int      @id @default(autoincrement())
+  importId  Int
+  import    Import   @relation(fields: [importId], references: [id], onDelete: Cascade)
+  message   String
+  level     String   // INFO, WARN, ERROR
+  createdAt DateTime @default(now())
+}
+
+model ReviewQueue {
+  id          Int      @id @default(autoincrement())
+  questionId  Int      @unique
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reason      String   // e.g., "Low Category Confidence", "Missing Options"
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
