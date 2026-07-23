@@ -11,12 +11,142 @@ datasource db {
   provider = "postgresql"
 }
 
+// A user of the mobile app.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+
+  attempts QuizAttempt[]
+  sessions Session[]
+}
+
+// A logged-in session, identified to clients by an opaque bearer token.
+// Only the token's hash is stored — a DB leak doesn't hand out usable tokens.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// "Prelims GS1", "Prelims CSAT", "Mains GS1", etc.
+// Kept as a table (not an enum) so new exam types can be added with a row insert, no migration.
+model ExamType {
+  id   Int    @id @default(autoincrement())
+  code String @unique // e.g. "PRELIMS_GS1"
+  name String // e.g. "Prelims General Studies I"
+
+  papers QuestionPaper[]
+}
+
+// Subject used for category-wise practice (History, Polity, Economy, ...).
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  questions        Question[]
+  attemptCategories AttemptCategory[]
+}
+
+// One official past-year paper, e.g. UPSC Prelims GS1 2026.
+model QuestionPaper {
+  id         Int      @id @default(autoincrement())
+  year       Int
+  examTypeId Int
+  title      String? // optional display label
+
+  examType  ExamType   @relation(fields: [examTypeId], references: [id])
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@unique([examTypeId, year])
+}
+
 model Question {
-  id            Int      @id @default(autoincrement())
-  text          String
-  optionA       String
-  optionB       String
-  optionC       String
-  optionD       String
-  correctAnswer String   // Will store 'a', 'b', 'c', or 'd'
+  id              Int     @id @default(autoincrement())
+  text            String
+  explanation     String?
+  categoryId      Int
+  questionPaperId Int?
+
+  category      Category       @relation(fields: [categoryId], references: [id])
+  questionPaper QuestionPaper? @relation(fields: [questionPaperId], references: [id])
+  options       Option[]
+  answers       AttemptAnswer[]
+
+  createdAt DateTime @default(now())
+}
+
+model Option {
+  id         Int    @id @default(autoincrement())
+  questionId Int
+  label      String // "A", "B", "C", "D"
+  text       String
+  isCorrect  Boolean @default(false)
+
+  question       Question        @relation(fields: [questionId], references: [id])
+  selectedInAnswers AttemptAnswer[]
+
+  @@unique([questionId, label])
+}
+
+enum AttemptMode {
+  FULL_PAPER
+  CATEGORY_PRACTICE
+}
+
+// One quiz session — either replaying a full past paper or a mixed-category practice set.
+model QuizAttempt {
+  id              Int         @id @default(autoincrement())
+  userId          String
+  mode            AttemptMode
+  questionPaperId Int? // set only when mode = FULL_PAPER
+  startedAt       DateTime    @default(now())
+  completedAt     DateTime?
+  totalQuestions  Int
+  correctCount    Int         @default(0)
+  wrongCount      Int         @default(0)
+  skippedCount    Int         @default(0)
+
+  user          User              @relation(fields: [userId], references: [id])
+  questionPaper QuestionPaper?    @relation(fields: [questionPaperId], references: [id])
+  categories    AttemptCategory[]
+  answers       AttemptAnswer[]
+}
+
+// Which categories were selected for a CATEGORY_PRACTICE attempt.
+model AttemptCategory {
+  id         Int @id @default(autoincrement())
+  attemptId  Int
+  categoryId Int
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id])
+  category Category    @relation(fields: [categoryId], references: [id])
+
+  @@unique([attemptId, categoryId])
+}
+
+// A single answered (or skipped) question within an attempt.
+// Weak-category stats are computed on demand by joining this to Question -> Category,
+// no separate stats table needed at this scale.
+model AttemptAnswer {
+  id               Int      @id @default(autoincrement())
+  attemptId        Int
+  questionId       Int
+  selectedOptionId Int? // null = skipped
+  isCorrect        Boolean  @default(false)
+  answeredAt       DateTime @default(now())
+
+  attempt        QuizAttempt @relation(fields: [attemptId], references: [id])
+  question       Question    @relation(fields: [questionId], references: [id])
+  selectedOption Option?     @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([attemptId, questionId])
 }
