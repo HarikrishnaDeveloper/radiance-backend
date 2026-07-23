@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,19 +11,14 @@ export async function POST(req: NextRequest) {
 
     const results = await prisma.$transaction(async (tx) => {
       // Create Paper if not exists
-      const paper = await tx.paper.upsert({
-        where: {
-          year_name: {
-            year: parseInt(year),
-            name: paperName,
-          },
-        },
-        update: {},
-        create: {
-          year: parseInt(year),
-          name: paperName,
-        },
+      let paper = await tx.paper.findFirst({
+        where: { year: parseInt(year), name: paperName, set: null },
       });
+      if (!paper) {
+        paper = await tx.paper.create({
+          data: { year: parseInt(year), name: paperName },
+        });
+      }
 
       // Create Import Record
       const importRecord = await tx.import.create({
