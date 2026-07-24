@@ -1,12 +1,15 @@
 {
-  "name": "radiance-backend",
+  "name": "radience-backend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3002 -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:pdf": "tsx scripts/test-pdf.ts",
+    "test:merge": "tsx scripts/test-merge.ts",
+    "import:upsc": "tsx scripts/import-pdfs.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
@@ -24,6 +27,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "glob": "^13.0.6",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
