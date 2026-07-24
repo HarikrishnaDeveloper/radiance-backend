@@ -2,9 +2,16 @@ import fs from "fs";
 import path from "path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import * as data2013 from "./seed-data/2013";
+import * as data2014 from "./seed-data/2014";
+import * as data2015 from "./seed-data/2015";
+import * as data2016 from "./seed-data/2016";
+import * as data2017 from "./seed-data/2017";
 import * as data2018 from "./seed-data/2018";
 import * as data2019 from "./seed-data/2019";
 import * as data2020 from "./seed-data/2020";
+import * as data2021 from "./seed-data/2021";
+import * as data2022 from "./seed-data/2022";
 import * as data2023 from "./seed-data/2023";
 import * as data2024 from "./seed-data/2024";
 import * as data2025 from "./seed-data/2025";
@@ -38,7 +45,7 @@ type SeedPaper = {
   questions: SeedQuestion[];
 };
 
-const papers: SeedPaper[] = [data2018, data2019, data2020, data2023, data2024, data2025];
+const papers: SeedPaper[] = [data2013, data2014, data2015, data2016, data2017, data2018, data2019, data2020, data2021, data2022, data2023, data2024, data2025];
 
 async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
   if (questions.length !== 100) {
@@ -102,10 +109,10 @@ async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
         tagRecords.push(tag);
       }
 
-      const needsReview = !!q.dropped || !!q.flagReview;
-      const reviewReason = q.dropped
-        ? "Officially dropped question — no correct answer in the answer key."
-        : q.flagReview;
+      // `dropped` is a resolved, final state (no valid answer exists — voided, not pending
+      // review), so it doesn't block promotion the way `flagReview` does.
+      const needsReview = !!q.flagReview;
+      const reviewReason = q.flagReview;
 
       const commonData = {
         text: q.text,
@@ -118,7 +125,7 @@ async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
         explanationSource: "",
         parseConfidence: 1.0,
         categoryConfidence: 1.0,
-        answerConfidence: needsReview ? (q.dropped ? 0.0 : 0.5) : 1.0,
+        answerConfidence: q.dropped ? 0.0 : (needsReview ? 0.5 : 1.0),
         status: needsReview ? "NEEDS_REVIEW" : "APPROVED",
         categoryId: category.id,
         subcategoryId: subcategory.id,

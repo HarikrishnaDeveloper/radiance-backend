@@ -105,6 +105,11 @@ model Question {
   explanation     String?
   categoryId      Int
   questionPaperId Int?
+  // True for questions with no valid answer key entry (e.g. officially dropped by UPSC,
+  // or a source transcription defective enough that no option can be marked correct).
+  // Scored as correct for every user, regardless of selection — matching how UPSC itself
+  // handles voided questions (full marks to all candidates).
+  isVoided        Boolean @default(false)
 
   category      Category        @relation(fields: [categoryId], references: [id])
   questionPaper QuestionPaper?  @relation(fields: [questionPaperId], references: [id])

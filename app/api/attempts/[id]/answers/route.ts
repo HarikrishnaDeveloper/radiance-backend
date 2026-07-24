@@ -37,7 +37,9 @@ export async function POST(request: NextRequest, ctx: Context) {
   if (!question) return NextResponse.json({ error: 'Question not found' }, { status: 404 })
 
   const correctOption = question.options.find((o) => o.isCorrect)
-  const isCorrect = selectedOptionId !== null && selectedOptionId === correctOption?.id
+  // Voided questions (no valid answer key entry) count as correct for everyone,
+  // regardless of selection — matching how UPSC itself scores dropped questions.
+  const isCorrect = question.isVoided || (selectedOptionId !== null && selectedOptionId === correctOption?.id)
 
   await prisma.attemptAnswer.upsert({
     where: { attemptId_questionId: { attemptId, questionId } },

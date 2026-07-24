@@ -14,6 +14,7 @@ const fullQuestionSelect = {
   id: true,
   text: true,
   explanation: true,
+  isVoided: true,
   category: { select: { id: true, name: true } },
   options: {
     select: { id: true, label: true, text: true, isCorrect: true },

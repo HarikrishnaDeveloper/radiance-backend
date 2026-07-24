@@ -42,6 +42,7 @@ export async function GET(request: NextRequest, ctx: Context) {
         id: q.id,
         text: q.text,
         explanation: q.explanation,
+        isVoided: q.isVoided,
         category: q.category,
         options: q.options,
         selectedOptionId: answer?.selectedOptionId ?? null,
