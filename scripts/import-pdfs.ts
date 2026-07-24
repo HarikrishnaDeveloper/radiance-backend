@@ -174,7 +174,7 @@ async function processPaperGroup(year: number, paperName: string, set: string | 
       else if (q.categoryConfidence < 0.8) { status = "NEEDS_REVIEW"; reviewReason = "Low Category Confidence"; }
       else if (!correctAnswer) { status = "NEEDS_REVIEW"; reviewReason = "Missing Answer"; }
 
-      const questionRecord = await tx.question.upsert({
+      const questionRecord = await tx.draftQuestion.upsert({
         where: { paperId_questionNo: { paperId: paper.id, questionNo: q.questionNo } },
         update: {
           text: q.text, optionA: q.optionA, optionB: q.optionB, optionC: q.optionC, optionD: q.optionD,

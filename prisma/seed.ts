@@ -124,7 +124,7 @@ async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
         subcategoryId: subcategory.id,
       };
 
-      const question = await tx.question.upsert({
+      const question = await tx.draftQuestion.upsert({
         where: { paperId_questionNo: { paperId: paper.id, questionNo: q.no } },
         update: commonData,
         create: { questionNo: q.no, paperId: paper.id, ...commonData },

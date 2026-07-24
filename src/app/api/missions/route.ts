@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Count total approved questions for this category
-    const totalQuestions = await prisma.question.count({
+    const totalQuestions = await prisma.draftQuestion.count({
       where: {
         categoryId: category.id,
         status: "APPROVED",

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Upsert Question
-        const question = await tx.question.upsert({
+        const question = await tx.draftQuestion.upsert({
           where: {
             paperId_questionNo: {
               paperId: paper.id,
