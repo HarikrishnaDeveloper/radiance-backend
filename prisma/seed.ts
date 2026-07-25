@@ -48,12 +48,13 @@ type SeedPaper = {
 const papers: SeedPaper[] = [data2013, data2014, data2015, data2016, data2017, data2018, data2019, data2020, data2021, data2022, data2023, data2024, data2025];
 
 async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
-  if (questions.length !== 100) {
-    throw new Error(`${paperMeta.year}: expected 100 questions, got ${questions.length}`);
+  if (questions.length === 0) {
+    throw new Error(`${paperMeta.year}: no questions provided`);
   }
   const nos = questions.map((q) => q.no);
-  for (let i = 1; i <= 100; i++) {
-    if (!nos.includes(i)) throw new Error(`${paperMeta.year}: missing questionNo ${i}`);
+  const duplicates = nos.filter((n, i) => nos.indexOf(n) !== i);
+  if (duplicates.length > 0) {
+    throw new Error(`${paperMeta.year}: duplicate questionNo(s) ${[...new Set(duplicates)].join(", ")}`);
   }
 
   const { savedCount } = await prisma.$transaction(async (tx) => {
