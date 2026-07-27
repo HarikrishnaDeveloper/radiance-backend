@@ -4,8 +4,10 @@
 export const safeQuestionSelect = {
   id: true,
   text: true,
+  questionImage: true,
   categoryId: true,
   category: { select: { id: true, name: true } },
+  questionPaper: { select: { year: true } },
   options: {
     select: { id: true, label: true, text: true },
     orderBy: { label: 'asc' as const },

@@ -10,22 +10,28 @@ datasource db {
 // Auth
 // ==========================================================================
 
-// A user of the mobile app.
+// A user of the mobile app. Authenticates via username+password OR phone OTP —
+// either identity may be absent depending on which path a user signed up through.
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  username     String   @unique
-  passwordHash String
-  name         String?
-  createdAt    DateTime @default(now())
+  id              String    @id @default(cuid())
+  email           String?   @unique
+  username        String?   @unique
+  passwordHash    String?
+  phone           String?   @unique
+  phoneVerifiedAt DateTime?
+  lastOtpSentAt   DateTime?
+  name            String?
+  createdAt       DateTime  @default(now())
 
-  attempts QuizAttempt[]
-  sessions Session[]
+  attempts      QuizAttempt[]
+  refreshTokens RefreshToken[]
 }
 
-// A logged-in session, identified to clients by an opaque bearer token.
+// A rotating opaque refresh token, identified to clients by its raw value.
 // Only the token's hash is stored — a DB leak doesn't hand out usable tokens.
-model Session {
+// Access tokens are short-lived signed JWTs (see lib/jwt.ts) and are verified
+// by signature alone, with no DB row involved.
+model RefreshToken {
   id        String   @id @default(cuid())
   tokenHash String   @unique
   userId    String
@@ -110,6 +116,7 @@ model Question {
   // Scored as correct for every user, regardless of selection — matching how UPSC itself
   // handles voided questions (full marks to all candidates).
   isVoided        Boolean @default(false)
+  questionImage   String?
 
   category      Category        @relation(fields: [categoryId], references: [id])
   questionPaper QuestionPaper?  @relation(fields: [questionPaperId], references: [id])

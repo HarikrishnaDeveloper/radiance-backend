@@ -78,6 +78,7 @@ async function promotePaper(paper: { id: number; year: number; name: string; set
         categoryId: dq.categoryId,
         questionPaperId: questionPaper.id,
         isVoided,
+        questionImage: dq.questionImage,
         options: {
           create: [
             { label: "A", text: dq.optionA, isCorrect: dq.correctAnswer === "A" },

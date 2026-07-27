@@ -9,7 +9,8 @@ export async function hashPassword(password: string): Promise<string> {
   return `${salt}:${hash.toString('hex')}`
 }
 
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
+  if (!stored) return false
   const [salt, hashHex] = stored.split(':')
   if (!salt || !hashHex) return false
   const hash = (await scryptAsync(password, salt, 64)) as Buffer

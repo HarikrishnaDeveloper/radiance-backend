@@ -41,6 +41,7 @@ export async function GET(request: NextRequest, ctx: Context) {
       return {
         id: q.id,
         text: q.text,
+        questionImage: q.questionImage ?? null,
         explanation: q.explanation,
         isVoided: q.isVoided,
         category: q.category,

@@ -13,9 +13,11 @@ type AttemptForQuestions = {
 const fullQuestionSelect = {
   id: true,
   text: true,
+  questionImage: true,
   explanation: true,
   isVoided: true,
   category: { select: { id: true, name: true } },
+  questionPaper: { select: { year: true } },
   options: {
     select: { id: true, label: true, text: true, isCorrect: true },
     orderBy: { label: 'asc' as const },

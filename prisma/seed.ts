@@ -2,6 +2,24 @@ import fs from "fs";
 import path from "path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import * as data1995 from "./seed-data/1995";
+import * as data1996 from "./seed-data/1996";
+import * as data1997 from "./seed-data/1997";
+import * as data1998 from "./seed-data/1998";
+import * as data1999 from "./seed-data/1999";
+import * as data2000 from "./seed-data/2000";
+import * as data2001 from "./seed-data/2001";
+import * as data2002 from "./seed-data/2002";
+import * as data2003 from "./seed-data/2003";
+import * as data2004 from "./seed-data/2004";
+import * as data2005 from "./seed-data/2005";
+import * as data2006 from "./seed-data/2006";
+import * as data2007 from "./seed-data/2007";
+import * as data2008 from "./seed-data/2008";
+import * as data2009 from "./seed-data/2009";
+import * as data2010 from "./seed-data/2010";
+import * as data2011 from "./seed-data/2011";
+import * as data2012 from "./seed-data/2012";
 import * as data2013 from "./seed-data/2013";
 import * as data2014 from "./seed-data/2014";
 import * as data2015 from "./seed-data/2015";
@@ -45,7 +63,7 @@ type SeedPaper = {
   questions: SeedQuestion[];
 };
 
-const papers: SeedPaper[] = [data2013, data2014, data2015, data2016, data2017, data2018, data2019, data2020, data2021, data2022, data2023, data2024, data2025];
+const papers: SeedPaper[] = [data1995, data1996, data1997, data1998, data1999, data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008, data2009, data2010, data2011, data2012, data2013, data2014, data2015, data2016, data2017, data2018, data2019, data2020, data2021, data2022, data2023, data2024, data2025];
 
 async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
   if (questions.length === 0) {

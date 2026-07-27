@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPassword } from '@/lib/password'
-import { createSession } from '@/lib/auth'
+import { signAccessToken } from '@/lib/jwt'
+import { createRefreshToken } from '@/lib/refresh-tokens'
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
@@ -18,10 +19,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 })
   }
 
-  const token = await createSession(user.id)
+  const accessToken = await signAccessToken({ id: user.id, username: user.username, name: user.name })
+  const refreshToken = await createRefreshToken(user.id)
 
   return NextResponse.json({
-    token,
+    accessToken,
+    refreshToken,
     user: { id: user.id, username: user.username, name: user.name },
   })
 }
