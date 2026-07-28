@@ -21,6 +21,8 @@ model User {
   phoneVerifiedAt DateTime?
   lastOtpSentAt   DateTime?
   name            String?
+  state           String?
+  dateOfBirth     DateTime?
   createdAt       DateTime  @default(now())
 
   attempts      QuizAttempt[]
