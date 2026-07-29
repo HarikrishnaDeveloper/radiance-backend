@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:pdf": "tsx scripts/test-pdf.ts",
     "test:merge": "tsx scripts/test-merge.ts",
-    "import:upsc": "tsx scripts/import-pdfs.ts"
+    "import:upsc": "tsx scripts/import-pdfs.ts",
+    "stages:build": "tsx scripts/build-stages.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

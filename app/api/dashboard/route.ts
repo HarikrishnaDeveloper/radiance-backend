@@ -2,57 +2,55 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
-
-function computeStreak(completedDates: Date[]): number {
-  const dateStrings = new Set(completedDates.map((d) => d.toISOString().slice(0, 10)))
-  if (dateStrings.size === 0) return 0
-
-  const today = new Date()
-  const cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
-
-  // If today has no completed attempt yet, start counting from yesterday
-  // so the streak doesn't visually reset before the user has had a chance to play.
-  if (!dateStrings.has(cursor.toISOString().slice(0, 10))) {
-    cursor.setUTCDate(cursor.getUTCDate() - 1)
-  }
-
-  let streak = 0
-  while (dateStrings.has(cursor.toISOString().slice(0, 10))) {
-    streak++
-    cursor.setUTCDate(cursor.getUTCDate() - 1)
-  }
-  return streak
-}
+import { computeStreakFromDates } from '@/lib/streak'
+import { getCategoryProgress } from '@/lib/category-progress'
+import { getContinueLearning } from '@/lib/continue-learning'
 
 export async function GET(request: NextRequest) {
   const { user, response } = await requireAuth(request)
   if (!user) return response
 
-  const [completedAttempts, continueAttempt, categories, papers] = await Promise.all([
-    prisma.quizAttempt.findMany({
-      where: { userId: user.id, completedAt: { not: null } },
-      select: { completedAt: true },
-    }),
-    prisma.quizAttempt.findFirst({
-      where: { userId: user.id, completedAt: null },
-      orderBy: { startedAt: 'desc' },
-      include: {
-        questionPaper: true,
-        categories: { include: { category: true } },
-        _count: { select: { answers: true } },
-      },
-    }),
-    prisma.category.findMany({
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { questions: true } } },
-    }),
-    prisma.questionPaper.findMany({
-      orderBy: { year: 'desc' },
-      include: { examType: true, _count: { select: { questions: true } } },
-    }),
-  ])
+  const [completedAttempts, completedStages, continueAttempt, categories, papers, categoryProgress, continueLearning, recentAchievements] =
+    await Promise.all([
+      prisma.quizAttempt.findMany({
+        where: { userId: user.id, completedAt: { not: null } },
+        select: { completedAt: true },
+      }),
+      prisma.userStageProgress.findMany({
+        where: { userId: user.id, status: 'COMPLETED', completedAt: { not: null } },
+        select: { completedAt: true },
+      }),
+      prisma.quizAttempt.findFirst({
+        where: { userId: user.id, completedAt: null },
+        orderBy: { startedAt: 'desc' },
+        include: {
+          questionPaper: true,
+          categories: { include: { category: true } },
+          _count: { select: { answers: true } },
+        },
+      }),
+      prisma.category.findMany({
+        orderBy: { name: 'asc' },
+        include: { _count: { select: { questions: true } } },
+      }),
+      prisma.questionPaper.findMany({
+        orderBy: { year: 'desc' },
+        include: { examType: true, _count: { select: { questions: true } } },
+      }),
+      getCategoryProgress(user.id),
+      getContinueLearning(user.id),
+      prisma.userStageProgress.findMany({
+        where: { userId: user.id, status: 'COMPLETED' },
+        orderBy: { completedAt: 'desc' },
+        take: 5,
+        include: { stage: { include: { category: true } } },
+      }),
+    ])
 
-  const streak = computeStreak(completedAttempts.map((a) => a.completedAt!))
+  const streak = computeStreakFromDates([
+    ...completedAttempts.map((a) => a.completedAt!),
+    ...completedStages.map((s) => s.completedAt!),
+  ])
 
   return NextResponse.json({
     streak,
@@ -75,6 +73,16 @@ export async function GET(request: NextRequest) {
       title: p.title,
       examType: { code: p.examType.code, name: p.examType.name },
       questionCount: p._count.questions,
+    })),
+    categoryProgress,
+    continueLearning,
+    recentAchievements: recentAchievements.map((a) => ({
+      stageId: a.stageId,
+      stageNumber: a.stage.stageNumber,
+      categoryName: a.stage.category.name,
+      foodWorldName: a.stage.foodWorldName,
+      starsEarned: a.starsEarned,
+      completedAt: a.completedAt,
     })),
   })
 }

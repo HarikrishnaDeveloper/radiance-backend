@@ -25,8 +25,10 @@ model User {
   dateOfBirth     DateTime?
   createdAt       DateTime  @default(now())
 
-  attempts      QuizAttempt[]
-  refreshTokens RefreshToken[]
+  attempts         QuizAttempt[]
+  refreshTokens    RefreshToken[]
+  stageProgress    UserStageProgress[]
+  questionProgress UserQuestionProgress[]
 }
 
 // A rotating opaque refresh token, identified to clients by its raw value.
@@ -52,10 +54,19 @@ model Category {
   id   Int    @id @default(autoincrement())
   name String @unique
 
+  // Gamified stage-mode presentation — see Stage below. All optional/defaulted
+  // so existing categories keep working before anyone sets these.
+  foodWorldName String?
+  icon          String?
+  color         String?
+  displayOrder  Int     @default(0)
+  isActive      Boolean @default(true)
+
   subcategories     Subcategory[]
   questions         Question[]
   draftQuestions    DraftQuestion[]
   attemptCategories AttemptCategory[]
+  stages            Stage[]
 }
 
 // Finer-grained topic within a Category, used by the import/review pipeline.
@@ -124,6 +135,8 @@ model Question {
   questionPaper QuestionPaper?  @relation(fields: [questionPaperId], references: [id])
   options       Option[]
   answers       AttemptAnswer[]
+  stageEntries  StageQuestion[]
+  userProgress  UserQuestionProgress[]
 
   createdAt DateTime @default(now())
 }
@@ -193,6 +206,95 @@ model AttemptAnswer {
   selectedOption Option?     @relation(fields: [selectedOptionId], references: [id])
 
   @@unique([attemptId, questionId])
+}
+
+// ==========================================================================
+// Stage-based learning (gamified "missions" layer over Category/Question)
+// A category's questions are auto-grouped into fixed batches of 10 by
+// StageBuilder (see lib/stage-builder.ts) — never hand-edited. Question
+// membership always goes through StageQuestion, never a stored range, so
+// question order/composition can change without touching stage records.
+// ==========================================================================
+
+enum StageProgressStatus {
+  LOCKED
+  UNLOCKED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Stage {
+  id            Int      @id @default(autoincrement())
+  categoryId    Int
+  stageNumber   Int
+  title         String
+  foodWorldName String?
+  questionCount Int
+  rewardStars   Int      @default(3)
+  unlockOrder   Int
+  isPublished   Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category  Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  questions StageQuestion[]
+  progress  UserStageProgress[]
+
+  @@unique([categoryId, stageNumber])
+}
+
+// Maps questions to stages. Never derive membership from an id range —
+// always go through this table so question order can be changed later.
+model StageQuestion {
+  id           Int @id @default(autoincrement())
+  stageId      Int
+  questionId   Int
+  displayOrder Int
+
+  stage    Stage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([stageId, questionId])
+}
+
+// A user's progress on one stage. Only created once a user starts or
+// completes a stage — LOCKED/UNLOCKED status for untouched stages is
+// computed on read (see lib/continue-learning.ts / categories/[id] route),
+// not persisted, matching AttemptAnswer's "no separate stats table" approach.
+model UserStageProgress {
+  id                 Int                 @id @default(autoincrement())
+  userId             String
+  stageId            Int
+  completedQuestions Int                 @default(0)
+  correctAnswers     Int                 @default(0)
+  accuracy           Float               @default(0)
+  starsEarned        Int                 @default(0)
+  status             StageProgressStatus @default(IN_PROGRESS)
+  startedAt          DateTime            @default(now())
+  completedAt        DateTime?
+
+  user  User  @relation(fields: [userId], references: [id])
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stageId])
+}
+
+// A user's latest attempt at a single question, independent of which stage
+// it was answered in — also carries the bookmark flag.
+model UserQuestionProgress {
+  id             Int      @id @default(autoincrement())
+  userId         String
+  questionId     Int
+  selectedOption Int?
+  isCorrect      Boolean  @default(false)
+  timeTaken      Int?
+  attemptedAt    DateTime @default(now())
+  bookmarked     Boolean  @default(false)
+
+  user     User     @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
 }
 
 // ==========================================================================

@@ -25,8 +25,10 @@ export async function POST(request: NextRequest) {
 
   try {
     await sendOtp(phone)
-  } catch {
-    return NextResponse.json({ error: 'Failed to send verification code' }, { status: 502 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[OTP SEND ERROR]:', message, err)
+    return NextResponse.json({ error: `Failed to send verification code: ${message}` }, { status: 502 })
   }
 
   await prisma.user.update({ where: { id: user.id }, data: { lastOtpSentAt: new Date() } })

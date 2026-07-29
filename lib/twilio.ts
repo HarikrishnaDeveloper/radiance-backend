@@ -21,7 +21,8 @@ export async function checkOtp(phone: string, code: string): Promise<boolean> {
   try {
     const result = await getClient().verify.v2.services(getServiceSid()).verificationChecks.create({ to: phone, code })
     return result.status === 'approved'
-  } catch {
+  } catch (err) {
+    console.error('[OTP CHECK ERROR]:', err)
     return false
   }
 }

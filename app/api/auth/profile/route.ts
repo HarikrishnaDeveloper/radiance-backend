@@ -17,8 +17,8 @@ export async function PATCH(request: NextRequest) {
   const dateOfBirth = body?.dateOfBirth
   const password = body?.password
 
-  if (typeof name !== 'string' || !name.trim()) {
-    return NextResponse.json({ error: 'name is required' }, { status: 400 })
+  if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+    return NextResponse.json({ error: 'name must be a non-empty string' }, { status: 400 })
   }
   if (email !== undefined && email !== null && typeof email !== 'string') {
     return NextResponse.json({ error: 'email must be a string' }, { status: 400 })
@@ -46,7 +46,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const data: Prisma.UserUpdateInput = {
-    name: name.trim(),
+    ...(name !== undefined ? { name: name.trim() } : {}),
     ...(email !== undefined ? { email: email?.trim() || null } : {}),
     ...(state !== undefined ? { state: state?.trim() || null } : {}),
     ...(parsedDob !== undefined ? { dateOfBirth: parsedDob } : {}),
