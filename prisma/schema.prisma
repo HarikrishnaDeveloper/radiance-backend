@@ -25,10 +25,11 @@ model User {
   dateOfBirth     DateTime?
   createdAt       DateTime  @default(now())
 
-  attempts         QuizAttempt[]
-  refreshTokens    RefreshToken[]
-  stageProgress    UserStageProgress[]
-  questionProgress UserQuestionProgress[]
+  attempts               QuizAttempt[]
+  refreshTokens          RefreshToken[]
+  stageProgress          UserStageProgress[]
+  questionProgress       UserQuestionProgress[]
+  dailyChallengeProgress UserDailyChallengeProgress[]
 }
 
 // A rotating opaque refresh token, identified to clients by its raw value.
@@ -134,9 +135,10 @@ model Question {
   category      Category        @relation(fields: [categoryId], references: [id])
   questionPaper QuestionPaper?  @relation(fields: [questionPaperId], references: [id])
   options       Option[]
-  answers       AttemptAnswer[]
-  stageEntries  StageQuestion[]
-  userProgress  UserQuestionProgress[]
+  answers               AttemptAnswer[]
+  stageEntries          StageQuestion[]
+  userProgress          UserQuestionProgress[]
+  dailyChallengeEntries DailyChallengeQuestion[]
 
   createdAt DateTime @default(now())
 }
@@ -295,6 +297,50 @@ model UserQuestionProgress {
   question Question @relation(fields: [questionId], references: [id])
 
   @@unique([userId, questionId])
+}
+
+// A daily mixed-category challenge, one row per calendar day. Lazily created
+// on first request for that day (see lib/daily-challenge.ts) — there's no
+// cron/job runner in this codebase, so nothing pre-generates it at midnight.
+model DailyChallenge {
+  id            Int      @id @default(autoincrement())
+  challengeDate DateTime @unique
+  questionCount Int
+  createdAt     DateTime @default(now())
+
+  questions DailyChallengeQuestion[]
+  progress  UserDailyChallengeProgress[]
+}
+
+model DailyChallengeQuestion {
+  id           Int @id @default(autoincrement())
+  challengeId  Int
+  questionId   Int
+  displayOrder Int
+
+  challenge DailyChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  question  Question       @relation(fields: [questionId], references: [id])
+
+  @@unique([challengeId, questionId])
+}
+
+// Once-a-day attempt at a DailyChallenge — unlike UserStageProgress, replay
+// is blocked once completedAt is set (see the submit route).
+model UserDailyChallengeProgress {
+  id                 Int       @id @default(autoincrement())
+  userId             String
+  challengeId        Int
+  completedQuestions Int       @default(0)
+  correctAnswers     Int       @default(0)
+  accuracy           Float     @default(0)
+  starsEarned        Int       @default(0)
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+
+  user      User           @relation(fields: [userId], references: [id])
+  challenge DailyChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, challengeId])
 }
 
 // ==========================================================================
