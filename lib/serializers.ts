@@ -6,6 +6,7 @@ export const safeQuestionSelect = {
   text: true,
   questionImage: true,
   categoryId: true,
+  difficulty: true,
   category: { select: { id: true, name: true } },
   questionPaper: { select: { year: true } },
   options: {

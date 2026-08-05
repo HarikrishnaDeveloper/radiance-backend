@@ -9,10 +9,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-export function proxy(request: NextRequest) {
+const REDACTED_KEYS = new Set(['password', 'token', 'accessToken', 'refreshToken'])
+
+function redact(body: string): string {
+  try {
+    const parsed = JSON.parse(body)
+    for (const key of Object.keys(parsed)) {
+      if (REDACTED_KEYS.has(key)) parsed[key] = '***'
+    }
+    return JSON.stringify(parsed)
+  } catch {
+    return body
+  }
+}
+
+export async function proxy(request: NextRequest) {
   if (request.method === 'OPTIONS') {
     return NextResponse.json({}, { headers: corsHeaders })
   }
+
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
+  const body = hasBody ? await request.clone().text().catch(() => '') : ''
+  console.log(`--> ${request.method} ${request.nextUrl.pathname}${body ? ' ' + redact(body) : ''}`)
 
   const response = NextResponse.next()
   for (const [key, value] of Object.entries(corsHeaders)) {

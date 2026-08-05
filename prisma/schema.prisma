@@ -25,6 +25,14 @@ model User {
   dateOfBirth     DateTime?
   createdAt       DateTime  @default(now())
 
+  // Streak freezes: protect the daily streak from breaking when a day is
+  // missed. `frozenDates` records which calendar days were auto-covered by
+  // a freeze, so streak/calendar computations can treat them as active days
+  // without them counting toward "real" activity stats. See lib/streak-freeze.ts.
+  streakFreezesAvailable Int        @default(2)
+  streakFreezesUsed      Int        @default(0)
+  frozenDates            DateTime[] @default([])
+
   attempts               QuizAttempt[]
   refreshTokens          RefreshToken[]
   stageProgress          UserStageProgress[]
@@ -131,6 +139,9 @@ model Question {
   // handles voided questions (full marks to all candidates).
   isVoided        Boolean @default(false)
   questionImage   String?
+  // Not yet curated per-question — defaults every existing and new question
+  // to MEDIUM until someone reviews and assigns real difficulty.
+  difficulty      QuestionDifficulty @default(MEDIUM)
 
   category      Category        @relation(fields: [categoryId], references: [id])
   questionPaper QuestionPaper?  @relation(fields: [questionPaperId], references: [id])
@@ -159,6 +170,12 @@ model Option {
 enum AttemptMode {
   FULL_PAPER
   CATEGORY_PRACTICE
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
 }
 
 // One quiz session — either replaying a full past paper or a mixed-category practice set.

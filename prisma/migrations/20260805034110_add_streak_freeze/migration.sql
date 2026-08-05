@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "frozenDates" TIMESTAMP(3)[] DEFAULT ARRAY[]::TIMESTAMP(3)[],
+ADD COLUMN     "streakFreezesAvailable" INTEGER NOT NULL DEFAULT 2,
+ADD COLUMN     "streakFreezesUsed" INTEGER NOT NULL DEFAULT 0;

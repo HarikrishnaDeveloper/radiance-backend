@@ -14,7 +14,22 @@ function getServiceSid(): string {
 }
 
 export async function sendOtp(phone: string): Promise<void> {
-  await getClient().verify.v2.services(getServiceSid()).verifications.create({ to: phone, channel: 'sms' })
+  const timeoutMs = 10_000
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    console.log('[TWILIO] Sending OTP to', phone)
+    await Promise.race([
+      getClient().verify.v2.services(getServiceSid()).verifications.create({ to: phone, channel: 'sms' }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Twilio request timed out after ${timeoutMs / 1000}s — check your TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID`)), timeoutMs)
+      }),
+    ])
+    console.log('[TWILIO] OTP sent successfully to', phone)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export async function checkOtp(phone: string, code: string): Promise<boolean> {

@@ -75,6 +75,12 @@ export async function POST(request: NextRequest, ctx: Context) {
   const accuracy = completedQuestions > 0 ? Math.round((correctAnswers / completedQuestions) * 100) : 0
   const starsEarned = computeStars(accuracy)
 
+  const existingProgress = await prisma.userStageProgress.findUnique({
+    where: { userId_stageId: { userId: user.id, stageId } },
+    select: { status: true },
+  })
+  const firstCompletion = existingProgress?.status !== 'COMPLETED'
+
   await prisma.userStageProgress.upsert({
     where: { userId_stageId: { userId: user.id, stageId } },
     update: { completedQuestions, correctAnswers, accuracy, starsEarned, status: 'COMPLETED', completedAt: new Date() },
@@ -92,7 +98,7 @@ export async function POST(request: NextRequest, ctx: Context) {
 
   const nextStage = await prisma.stage.findUnique({
     where: { categoryId_stageNumber: { categoryId: stage.categoryId, stageNumber: stage.stageNumber + 1 } },
-    select: { id: true },
+    select: { id: true, stageNumber: true },
   })
 
   return NextResponse.json({
@@ -101,7 +107,9 @@ export async function POST(request: NextRequest, ctx: Context) {
     correctAnswers,
     accuracy,
     starsEarned,
+    firstCompletion,
     nextStageUnlocked: Boolean(nextStage),
     nextStageId: nextStage?.id ?? null,
+    nextStageNumber: nextStage?.stageNumber ?? null,
   })
 }

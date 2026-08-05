@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { computeLongestStreak, computeStreakFromDates, recentActivityDays } from '@/lib/streak'
+import { getActivityDates } from '@/lib/user-activity'
 import { getCategoryProgress } from '@/lib/category-progress'
 import { getContinueLearning } from '@/lib/continue-learning'
 import { getUserStats } from '@/lib/user-stats'
@@ -13,9 +14,7 @@ export async function GET(request: NextRequest) {
   if (!user) return response
 
   const [
-    completedAttempts,
-    completedStages,
-    completedDailyChallenges,
+    activityDates,
     continueAttempt,
     categories,
     papers,
@@ -25,18 +24,7 @@ export async function GET(request: NextRequest) {
     stats,
     todayChallenge,
   ] = await Promise.all([
-      prisma.quizAttempt.findMany({
-        where: { userId: user.id, completedAt: { not: null } },
-        select: { completedAt: true },
-      }),
-      prisma.userStageProgress.findMany({
-        where: { userId: user.id, status: 'COMPLETED', completedAt: { not: null } },
-        select: { completedAt: true },
-      }),
-      prisma.userDailyChallengeProgress.findMany({
-        where: { userId: user.id, completedAt: { not: null } },
-        select: { completedAt: true },
-      }),
+      getActivityDates(prisma, user.id),
       prisma.quizAttempt.findFirst({
         where: { userId: user.id, completedAt: null },
         orderBy: { startedAt: 'desc' },
@@ -66,11 +54,6 @@ export async function GET(request: NextRequest) {
       getOrCreateTodayChallenge(prisma),
     ])
 
-  const activityDates = [
-    ...completedAttempts.map((a) => a.completedAt!),
-    ...completedStages.map((s) => s.completedAt!),
-    ...completedDailyChallenges.map((d) => d.completedAt!),
-  ]
   const streak = computeStreakFromDates(activityDates)
   const longestStreak = computeLongestStreak(activityDates)
   const todayStr = new Date().toISOString().slice(0, 10)
