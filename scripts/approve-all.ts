@@ -6,7 +6,7 @@ import { Pool } from "pg";
 
 for (const line of fs.readFileSync(path.join(__dirname, "..", ".env"), "utf8").split("\n")) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);
-  if (m) process.env[m[1]] = m[2].replace(/^"|"$/g, "");
+  if (m) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, "");
 }
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
