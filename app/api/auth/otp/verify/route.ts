@@ -15,19 +15,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'phone and code are required' }, { status: 400 })
   }
 
+  console.time('[VERIFY] total')
+
+  console.time('[VERIFY] twilio checkOtp')
   const ok = await checkOtp(phone, code)
+  console.timeEnd('[VERIFY] twilio checkOtp')
   if (!ok) {
+    console.timeEnd('[VERIFY] total')
     return NextResponse.json({ error: 'Invalid or expired code' }, { status: 401 })
   }
 
+  console.time('[VERIFY] db upsert user')
   const user = await prisma.user.upsert({
     where: { phone },
     update: { phoneVerifiedAt: new Date() },
     create: { phone, phoneVerifiedAt: new Date() },
   })
+  console.timeEnd('[VERIFY] db upsert user')
 
+  console.time('[VERIFY] sign jwt')
   const accessToken = await signAccessToken({ id: user.id, username: user.username, name: user.name })
+  console.timeEnd('[VERIFY] sign jwt')
+
+  console.time('[VERIFY] db create refresh token')
   const refreshToken = await createRefreshToken(user.id)
+  console.timeEnd('[VERIFY] db create refresh token')
+
+  console.timeEnd('[VERIFY] total')
 
   return NextResponse.json({
     accessToken,
