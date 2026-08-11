@@ -34,6 +34,8 @@ export async function GET(request: NextRequest, ctx: Context) {
     correctCount: attempt.correctCount,
     wrongCount: attempt.wrongCount,
     skippedCount: attempt.skippedCount,
+    startedAt: attempt.startedAt,
+    completedAt: attempt.completedAt,
     scorePercent:
       attempt.totalQuestions > 0 ? Math.round((attempt.correctCount / attempt.totalQuestions) * 100) : 0,
     questions: questions.map((q) => {
