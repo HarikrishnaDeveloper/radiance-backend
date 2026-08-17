@@ -1,3 +1,21 @@
+import type { User } from '@prisma/client'
+
+// Shape of a User handed back to the client on auth responses. Excludes
+// passwordHash and other internal fields; every auth route should build its
+// response through this rather than hand-picking fields itself.
+export function publicUser(user: User) {
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    phone: user.phone,
+    email: user.email,
+    state: user.state,
+    isTestUser: user.isTestUser,
+    isPremium: user.isPremium,
+  }
+}
+
 // Prisma `select` shape for questions shown to a client mid-attempt.
 // Deliberately omits `Option.isCorrect` and `Question.explanation` — both
 // would hand over the answer key before the attempt is complete.

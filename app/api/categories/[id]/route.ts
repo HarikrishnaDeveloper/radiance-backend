@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
+import { hasFullAccess, FREE_STAGE_LIMIT } from '@/lib/entitlement'
 
 type Context = { params: Promise<{ id: string }> }
 
@@ -29,11 +30,19 @@ export async function GET(request: NextRequest, ctx: Context) {
   })
   const progressByStageId = new Map(progressRows.map((row) => [row.stageId, row]))
 
+  const fullAccess = await hasFullAccess(user.id)
+  const completedStagesTotal = progressRows.filter((row) => row.status === 'COMPLETED').length
+  // Free budget is spent globally (see lib/entitlement.ts), so once it's used
+  // up, any stage this user hasn't already finished needs a subscription —
+  // independent of whether it's otherwise UNLOCKED by progression.
+  const freeBudgetExhausted = !fullAccess && completedStagesTotal >= FREE_STAGE_LIMIT
+
   let previousCompleted = true // stage 1 is always unlocked
   const stages = category.stages.map((stage) => {
     const progress = progressByStageId.get(stage.id)
     const status = progress ? progress.status : previousCompleted ? 'UNLOCKED' : 'LOCKED'
     previousCompleted = status === 'COMPLETED'
+    const requiresSubscription = freeBudgetExhausted && status !== 'COMPLETED'
 
     return {
       id: stage.id,
@@ -44,6 +53,7 @@ export async function GET(request: NextRequest, ctx: Context) {
       status,
       starsEarned: progress?.starsEarned ?? 0,
       accuracy: progress?.accuracy ?? 0,
+      requiresSubscription,
     }
   })
 

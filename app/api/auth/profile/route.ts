@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { signAccessToken } from '@/lib/jwt'
 import { hashPassword } from '@/lib/password'
+import { publicUser } from '@/lib/serializers'
 
 export async function PATCH(request: NextRequest) {
   const { user, response } = await requireAuth(request)
@@ -73,13 +74,6 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({
     accessToken,
-    user: {
-      id: updated.id,
-      username: updated.username,
-      name: updated.name,
-      phone: updated.phone,
-      email: updated.email,
-      state: updated.state,
-    },
+    user: publicUser(updated),
   })
 }

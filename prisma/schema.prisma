@@ -33,11 +33,53 @@ model User {
   streakFreezesUsed      Int        @default(0)
   frozenDates            DateTime[] @default([])
 
+  // Internal/QA accounts — always treated as having an active subscription,
+  // regardless of `isPremium` or the Subscription row below. See lib/entitlement.ts.
+  isTestUser Boolean @default(false)
+  // Fast-read cache of "does this user currently have paid access" — kept in
+  // sync with `subscription.status` by the checkout-verify and webhook routes
+  // (see app/api/payments/*). Source of truth is still the Subscription row;
+  // this field just avoids a join on every stage/question request.
+  isPremium  Boolean @default(false)
+
   attempts               QuizAttempt[]
   refreshTokens          RefreshToken[]
   stageProgress          UserStageProgress[]
   questionProgress       UserQuestionProgress[]
   dailyChallengeProgress UserDailyChallengeProgress[]
+  subscription           Subscription?
+}
+
+// ==========================================================================
+// Billing — one recurring Razorpay subscription per user (₹30/month "unlock
+// everything" plan). Status mirrors Razorpay's subscription lifecycle; kept
+// current by verify-subscription (first payment) and the webhook (renewals/
+// cancellations/failures) — see app/api/payments/*.
+// ==========================================================================
+
+enum SubscriptionStatus {
+  CREATED
+  AUTHENTICATED
+  ACTIVE
+  PENDING
+  HALTED
+  CANCELLED
+  COMPLETED
+  EXPIRED
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  userId                 String             @unique
+  razorpaySubscriptionId String             @unique
+  razorpayPlanId         String
+  status                 SubscriptionStatus @default(CREATED)
+  currentStart           DateTime?
+  currentEnd             DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 // A rotating opaque refresh token, identified to clients by its raw value.
@@ -128,7 +170,7 @@ model QuestionPaper {
 // A reviewed, quiz-ready question. Populated either directly (seed-2026-prelims-gs1.ts)
 // or promoted from a DraftQuestion once it clears review.
 model Question {
-  id              Int     @id @default(autoincrement())
+  id              Int                @id @default(autoincrement())
   text            String
   explanation     String?
   categoryId      Int
@@ -137,15 +179,15 @@ model Question {
   // or a source transcription defective enough that no option can be marked correct).
   // Scored as correct for every user, regardless of selection — matching how UPSC itself
   // handles voided questions (full marks to all candidates).
-  isVoided        Boolean @default(false)
+  isVoided        Boolean            @default(false)
   questionImage   String?
   // Not yet curated per-question — defaults every existing and new question
   // to MEDIUM until someone reviews and assigns real difficulty.
   difficulty      QuestionDifficulty @default(MEDIUM)
 
-  category      Category        @relation(fields: [categoryId], references: [id])
-  questionPaper QuestionPaper?  @relation(fields: [questionPaperId], references: [id])
-  options       Option[]
+  category              Category                 @relation(fields: [categoryId], references: [id])
+  questionPaper         QuestionPaper?           @relation(fields: [questionPaperId], references: [id])
+  options               Option[]
   answers               AttemptAnswer[]
   stageEntries          StageQuestion[]
   userProgress          UserQuestionProgress[]
@@ -378,41 +420,41 @@ model Paper {
 }
 
 model DraftQuestion {
-  id                 Int     @id @default(autoincrement())
-  questionNo         Int
-  text               String
-  optionA            String?
-  optionB            String?
-  optionC            String?
-  optionD            String?
-  correctAnswer      String?
+  id            Int     @id @default(autoincrement())
+  questionNo    Int
+  text          String
+  optionA       String?
+  optionB       String?
+  optionC       String?
+  optionD       String?
+  correctAnswer String?
 
-  explanation        String?
-  explanationSource  String?
-  reviewed           Boolean @default(false)
+  explanation       String?
+  explanationSource String?
+  reviewed          Boolean @default(false)
 
-  questionImage      String?
-  optionImage        String?
-  imageType          String? // e.g., "MAP", "CHART", "TABLE", "DIAGRAM", "GENERAL"
-  imageBoundingBox   String? // JSON string storing coordinates or OCR bbox
+  questionImage    String?
+  optionImage      String?
+  imageType        String? // e.g., "MAP", "CHART", "TABLE", "DIAGRAM", "GENERAL"
+  imageBoundingBox String? // JSON string storing coordinates or OCR bbox
 
-  parseConfidence    Float   @default(0.0)
-  categoryConfidence Float   @default(0.0)
-  answerConfidence   Float   @default(0.0)
+  parseConfidence    Float @default(0.0)
+  categoryConfidence Float @default(0.0)
+  answerConfidence   Float @default(0.0)
 
-  status             String  @default("NEEDS_REVIEW") // NEEDS_REVIEW or APPROVED
+  status String @default("NEEDS_REVIEW") // NEEDS_REVIEW or APPROVED
 
-  paperId            Int
-  paper              Paper       @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  paperId Int
+  paper   Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
 
-  categoryId         Int?
-  category           Category?   @relation(fields: [categoryId], references: [id])
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
 
-  subcategoryId      Int?
-  subcategory        Subcategory? @relation(fields: [subcategoryId], references: [id])
+  subcategoryId Int?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
 
-  tags               QuestionTag[]
-  reviewQueue        ReviewQueue?
+  tags        QuestionTag[]
+  reviewQueue ReviewQueue?
 
   @@unique([paperId, questionNo])
 }

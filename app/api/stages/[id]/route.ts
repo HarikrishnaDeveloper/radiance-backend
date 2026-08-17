@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { safeQuestionSelect } from '@/lib/serializers'
+import { canAccessStage, FREE_STAGE_LIMIT } from '@/lib/entitlement'
 
 type Context = { params: Promise<{ id: string }> }
 
@@ -16,6 +17,15 @@ export async function GET(request: NextRequest, ctx: Context) {
   const stageId = Number(id)
   if (!Number.isInteger(stageId)) {
     return NextResponse.json({ error: 'Invalid stage id' }, { status: 400 })
+  }
+
+  // Checked before the question content is fetched at all — question text/options
+  // must never leave the server for a stage the user isn't entitled to see.
+  if (!(await canAccessStage(user.id, stageId))) {
+    return NextResponse.json(
+      { error: 'SUBSCRIPTION_REQUIRED', freeStageLimit: FREE_STAGE_LIMIT },
+      { status: 402 }
+    )
   }
 
   const stage = await prisma.stage.findUnique({

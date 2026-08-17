@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyPassword } from '@/lib/password'
 import { signAccessToken } from '@/lib/jwt'
 import { createRefreshToken } from '@/lib/refresh-tokens'
+import { publicUser } from '@/lib/serializers'
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
@@ -25,6 +26,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     accessToken,
     refreshToken,
-    user: { id: user.id, username: user.username, name: user.name },
+    user: publicUser(user),
   })
 }

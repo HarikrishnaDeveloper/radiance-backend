@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { checkOtp } from '@/lib/twilio'
 import { signAccessToken } from '@/lib/jwt'
 import { createRefreshToken } from '@/lib/refresh-tokens'
+import { publicUser } from '@/lib/serializers'
 
 const E164_RE = /^\+[1-9]\d{7,14}$/
 
@@ -46,6 +47,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     accessToken,
     refreshToken,
-    user: { id: user.id, username: user.username, name: user.name, phone: user.phone },
+    user: publicUser(user),
   })
 }
