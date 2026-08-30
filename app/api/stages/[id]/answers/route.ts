@@ -59,5 +59,6 @@ export async function POST(request: NextRequest, ctx: Context) {
     isCorrect,
     correctOptionId: correctOption?.id ?? null,
     explanation: question.explanation,
+    revisionPoints: question.revisionPoints,
   })
 }

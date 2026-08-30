@@ -15,6 +15,7 @@ const fullQuestionSelect = {
   text: true,
   questionImage: true,
   explanation: true,
+  revisionPoints: true,
   isVoided: true,
   difficulty: true,
   category: { select: { id: true, name: true } },

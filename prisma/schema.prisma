@@ -173,6 +173,9 @@ model Question {
   id              Int                @id @default(autoincrement())
   text            String
   explanation     String?
+  // Bulleted "remember this" / "also revise" cram points shown alongside the
+  // explanation on the results/review screen — distinct from the prose explanation.
+  revisionPoints  String?
   categoryId      Int
   questionPaperId Int?
   // True for questions with no valid answer key entry (e.g. officially dropped by UPSC,
@@ -431,6 +434,7 @@ model DraftQuestion {
 
   explanation       String?
   explanationSource String?
+  revisionPoints    String?
   reviewed          Boolean @default(false)
 
   questionImage    String?

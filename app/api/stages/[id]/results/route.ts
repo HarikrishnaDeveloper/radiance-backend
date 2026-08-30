@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, ctx: Context) {
               text: true,
               questionImage: true,
               explanation: true,
+              revisionPoints: true,
               options: {
                 select: { id: true, label: true, text: true, isCorrect: true },
                 orderBy: { label: 'asc' as const },
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest, ctx: Context) {
         text: sq.question.text,
         questionImage: sq.question.questionImage,
         explanation: sq.question.explanation,
+        revisionPoints: sq.question.revisionPoints,
         options: sq.question.options,
         selectedOptionId: p?.selectedOption ?? null,
         isCorrect: p?.isCorrect ?? false,

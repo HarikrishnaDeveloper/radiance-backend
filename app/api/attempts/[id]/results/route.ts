@@ -45,6 +45,7 @@ export async function GET(request: NextRequest, ctx: Context) {
         text: q.text,
         questionImage: q.questionImage ?? null,
         explanation: q.explanation,
+        revisionPoints: q.revisionPoints,
         isVoided: q.isVoided,
         category: q.category,
         options: q.options,

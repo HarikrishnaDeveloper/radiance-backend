@@ -69,6 +69,7 @@ export async function promotePaper(
       data: {
         text: dq.text,
         explanation: dq.explanation || null,
+        revisionPoints: dq.revisionPoints || null,
         categoryId: dq.categoryId,
         questionPaperId: questionPaper.id,
         isVoided,

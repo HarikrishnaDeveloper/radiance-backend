@@ -54,6 +54,7 @@ type SeedQuestion = {
   subcategory: string;
   tags?: string[];
   expl?: string;
+  revisionPoints?: string;
   dropped?: boolean;
   flagReview?: string;
 };
@@ -147,6 +148,7 @@ async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
       correctAnswer: q.ans,
       explanation: q.expl || (q.dropped ? "Question was officially dropped by UPSC; full marks were awarded to all candidates. No valid answer key entry exists." : ""),
       explanationSource: "",
+      revisionPoints: q.revisionPoints || "",
       parseConfidence: 1.0,
       categoryConfidence: 1.0,
       answerConfidence: q.dropped ? 0.0 : (needsReview ? 0.5 : 1.0),
