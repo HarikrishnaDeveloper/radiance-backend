@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
-import { cancelRazorpaySubscription } from '@/lib/razorpay'
+import { cancelSubscriptionNow } from '@/lib/billing'
 
 export async function POST(request: NextRequest) {
   const { user, response } = await requireAuth(request)
@@ -13,15 +13,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No active subscription' }, { status: 404 })
   }
 
-  await cancelRazorpaySubscription(subscription.razorpaySubscriptionId)
-
   // Access is revoked here rather than waiting for the cancellation webhook —
   // same "don't make the user wait on us" reasoning as verify-subscription.
   // Razorpay's own webhook will confirm this shortly after with the same status.
-  await prisma.$transaction([
-    prisma.subscription.update({ where: { id: subscription.id }, data: { status: 'CANCELLED' } }),
-    prisma.user.update({ where: { id: user.id }, data: { isPremium: false } }),
-  ])
+  await cancelSubscriptionNow(subscription)
 
   return NextResponse.json({ ok: true })
 }

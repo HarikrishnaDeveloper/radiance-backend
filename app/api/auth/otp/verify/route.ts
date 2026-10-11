@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     where: { phone },
     update: { phoneVerifiedAt: new Date() },
     create: { phone, phoneVerifiedAt: new Date() },
+    include: { profile: true },
   })
   console.timeEnd('[VERIFY] db upsert user')
 

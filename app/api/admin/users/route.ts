@@ -13,17 +13,20 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q')?.trim() || undefined
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  const filter = searchParams.get('filter') ?? 'all'
 
-  const where: Prisma.UserWhereInput = q
-    ? {
-        OR: [
-          { username: { contains: q, mode: 'insensitive' } },
-          { phone: { contains: q, mode: 'insensitive' } },
-          { email: { contains: q, mode: 'insensitive' } },
-          { name: { contains: q, mode: 'insensitive' } },
-        ],
-      }
-    : {}
+  const where: Prisma.UserWhereInput = {}
+  if (q) {
+    where.OR = [
+      { username: { contains: q, mode: 'insensitive' } },
+      { phone: { contains: q, mode: 'insensitive' } },
+      { email: { contains: q, mode: 'insensitive' } },
+      { name: { contains: q, mode: 'insensitive' } },
+    ]
+  }
+  if (filter === 'premium') where.isPremium = true
+  if (filter === 'free') Object.assign(where, { isPremium: false, isTestUser: false })
+  if (filter === 'test') where.isTestUser = true
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -40,6 +43,16 @@ export async function GET(request: NextRequest) {
         isTestUser: true,
         isPremium: true,
         createdAt: true,
+        profileCompleted: true,
+        profile: {
+          select: {
+            targetExam: true,
+            preparationLevel: true,
+            targetAttempt: true,
+            preparationFocus: true,
+          },
+        },
+        subscription: { select: { status: true } },
       },
     }),
     prisma.user.count({ where }),

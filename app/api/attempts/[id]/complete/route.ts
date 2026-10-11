@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { loadAttemptQuestionsFull } from '@/lib/attempt-questions'
+import { maxScoreFor, scoreFor } from '@/lib/paper-test'
 
 type Context = { params: Promise<{ id: string }> }
 
@@ -12,6 +13,8 @@ function summarize(attempt: {
   correctCount: number
   wrongCount: number
   skippedCount: number
+  score: number | null
+  maxScore: number | null
 }) {
   return {
     id: attempt.id,
@@ -19,6 +22,8 @@ function summarize(attempt: {
     correctCount: attempt.correctCount,
     wrongCount: attempt.wrongCount,
     skippedCount: attempt.skippedCount,
+    score: attempt.score,
+    maxScore: attempt.maxScore,
     scorePercent:
       attempt.totalQuestions > 0 ? Math.round((attempt.correctCount / attempt.totalQuestions) * 100) : 0,
   }
@@ -60,7 +65,14 @@ export async function POST(request: NextRequest, ctx: Context) {
 
   const updated = await prisma.quizAttempt.update({
     where: { id: attemptId },
-    data: { completedAt: new Date(), correctCount, wrongCount, skippedCount },
+    data: {
+      completedAt: new Date(),
+      correctCount,
+      wrongCount,
+      skippedCount,
+      score: scoreFor(correctCount, wrongCount),
+      maxScore: maxScoreFor(attempt.totalQuestions),
+    },
   })
 
   return NextResponse.json(summarize(updated))

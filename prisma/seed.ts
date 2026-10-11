@@ -1,4 +1,6 @@
 import fs from "fs";
+import { randomBytes, scrypt } from "node:crypto";
+import { promisify } from "node:util";
 import path from "path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@prisma/client";
@@ -33,8 +35,9 @@ import * as data2022 from "./seed-data/2022";
 import * as data2023 from "./seed-data/2023";
 import * as data2024 from "./seed-data/2024";
 import * as data2025 from "./seed-data/2025";
+import * as data2026 from "./seed-data/2026";
 
-for (const line of fs.readFileSync(path.join(__dirname, "..", ".env"), "utf8").split("\n")) {
+for (const line of fs.readFileSync(path.resolve(".env"), "utf8").split("\n")) {
   const m = line.match(/^([A-Z_]+)=(.*)$/);
   if (m) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, "");
 }
@@ -66,7 +69,7 @@ type SeedPaper = {
 
 const BATCH_SIZE = 100;
 
-const papers: SeedPaper[] = [data1995, data1996, data1997, data1998, data1999, data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008, data2009, data2010, data2011, data2012, data2013, data2014, data2015, data2016, data2017, data2018, data2019, data2020, data2021, data2022, data2023, data2024, data2025];
+const papers: SeedPaper[] = [data1995, data1996, data1997, data1998, data1999, data2000, data2001, data2002, data2003, data2004, data2005, data2006, data2007, data2008, data2009, data2010, data2011, data2012, data2013, data2014, data2015, data2016, data2017, data2018, data2019, data2020, data2021, data2022, data2023, data2024, data2025, data2026];
 
 async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
   if (questions.length === 0) {
@@ -217,7 +220,40 @@ async function seedPaper({ paper: paperMeta, questions }: SeedPaper) {
   console.log(`${paperMeta.year}: seeded ${savedCount} questions`);
 }
 
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const hash = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${hash.toString("hex")}`;
+}
+
+async function seedDemoUser() {
+  const phone = "8072542190";
+  const passwordHash = await hashPassword("Elakki123");
+
+  const existing = await prisma.user.findUnique({ where: { phone } });
+  if (existing) {
+    await prisma.user.update({
+      where: { phone },
+      data: { passwordHash, name: "Demo User", phoneVerifiedAt: new Date() },
+    });
+    console.log(`Demo user (${phone}) updated.`);
+  } else {
+    await prisma.user.create({
+      data: {
+        phone,
+        passwordHash,
+        name: "Demo User",
+        phoneVerifiedAt: new Date(),
+      },
+    });
+    console.log(`Demo user (${phone}) created.`);
+  }
+}
+
 async function main() {
+  await seedDemoUser();
   for (const p of papers) {
     await seedPaper(p);
   }

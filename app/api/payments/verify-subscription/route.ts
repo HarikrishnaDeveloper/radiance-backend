@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
-import { verifySubscriptionPaymentSignature } from '@/lib/razorpay'
+import { MONTHLY_PLAN_AMOUNT_PAISE, verifySubscriptionPaymentSignature } from '@/lib/razorpay'
+import { recordPayment } from '@/lib/billing'
 
 export async function POST(request: NextRequest) {
   const { user, response } = await requireAuth(request)
@@ -38,10 +39,28 @@ export async function POST(request: NextRequest) {
   // The webhook is the durable source of truth for renewals/cancellations,
   // but we flip access on immediately here too — waiting for the webhook
   // round trip would leave a user who just paid staring at a paywall.
-  await prisma.$transaction([
-    prisma.subscription.update({ where: { userId: user.id }, data: { status: 'ACTIVE' } }),
-    prisma.user.update({ where: { id: user.id }, data: { isPremium: true } }),
-  ])
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { userId: user.id },
+      data: {
+        status: 'ACTIVE',
+        activatedAt: subscription.activatedAt ?? new Date(),
+        cancelledAt: null,
+      },
+    })
+    await tx.user.update({ where: { id: user.id }, data: { isPremium: true } })
+    // The subscription.charged webhook reports this same payment with the
+    // method and exact timestamp; recordPayment dedupes on the payment id.
+    await recordPayment(
+      {
+        userId: user.id,
+        subscriptionId: subscription.id,
+        razorpayPaymentId,
+        amountPaise: MONTHLY_PLAN_AMOUNT_PAISE,
+      },
+      tx
+    )
+  })
 
   return NextResponse.json({ ok: true, isPremium: true })
 }

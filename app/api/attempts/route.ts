@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, TestMode } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
+import { canAccessPaper, sectionDurationSeconds } from '@/lib/paper-test'
 
 const PRACTICE_QUESTION_COUNT = 10
 
@@ -19,13 +20,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'questionPaperId is required' }, { status: 400 })
     }
 
-    const totalQuestions = await prisma.question.count({ where: { questionPaperId } })
+    const testMode: TestMode = body?.testMode === 'EXAM' ? 'EXAM' : 'PRACTICE'
+    const sectionCategoryId =
+      body?.sectionCategoryId === null || body?.sectionCategoryId === undefined ? null : Number(body.sectionCategoryId)
+    if (sectionCategoryId !== null && !Number.isInteger(sectionCategoryId)) {
+      return NextResponse.json({ error: 'sectionCategoryId must be an integer' }, { status: 400 })
+    }
+
+    const paper = await prisma.questionPaper.findUnique({ where: { id: questionPaperId }, select: { year: true } })
+    if (!paper) return NextResponse.json({ error: 'Paper not found' }, { status: 404 })
+    if (!(await canAccessPaper(user.id, paper.year))) {
+      return NextResponse.json({ error: 'SUBSCRIPTION_REQUIRED' }, { status: 402 })
+    }
+
+    const [paperQuestions, totalQuestions] = await Promise.all([
+      prisma.question.count({ where: { questionPaperId } }),
+      prisma.question.count({
+        where: { questionPaperId, ...(sectionCategoryId !== null ? { categoryId: sectionCategoryId } : {}) },
+      }),
+    ])
     if (totalQuestions === 0) {
-      return NextResponse.json({ error: 'Paper not found or has no questions' }, { status: 404 })
+      return NextResponse.json({ error: 'Paper or section has no questions' }, { status: 404 })
     }
 
     const attempt = await prisma.quizAttempt.create({
-      data: { userId: user.id, mode: 'FULL_PAPER', questionPaperId, totalQuestions },
+      data: {
+        userId: user.id,
+        mode: 'FULL_PAPER',
+        questionPaperId,
+        sectionCategoryId,
+        testMode,
+        totalQuestions,
+        durationSeconds: testMode === 'EXAM' ? sectionDurationSeconds(totalQuestions, paperQuestions) : null,
+      },
     })
     return NextResponse.json({ id: attempt.id }, { status: 201 })
   }
@@ -71,13 +98,18 @@ export async function GET(request: NextRequest) {
   const attempts = await prisma.quizAttempt.findMany({
     where,
     orderBy: { startedAt: 'desc' },
-    include: { questionPaper: true, categories: { include: { category: true } } },
+    include: { questionPaper: true, sectionCategory: true, categories: { include: { category: true } } },
   })
 
   return NextResponse.json(
     attempts.map((a) => ({
       id: a.id,
       mode: a.mode,
+      testMode: a.testMode,
+      questionPaperId: a.questionPaperId,
+      sectionName: a.sectionCategory?.name ?? null,
+      score: a.score,
+      maxScore: a.maxScore,
       startedAt: a.startedAt,
       completedAt: a.completedAt,
       totalQuestions: a.totalQuestions,

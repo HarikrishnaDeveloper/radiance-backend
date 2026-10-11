@@ -12,8 +12,10 @@ export async function buildStagesForCategory(prisma: PrismaClient, categoryId: n
   const category = await prisma.category.findUnique({ where: { id: categoryId } })
   if (!category) throw new Error(`Category ${categoryId} not found`)
 
+  // Only questions that belong to a paper. Superseded copies detached by
+  // scripts/sync-paper-questions.ts (kept only for old answers) are left out.
   const questions = await prisma.question.findMany({
-    where: { categoryId },
+    where: { categoryId, questionPaperId: { not: null } },
     orderBy: [{ questionPaper: { year: 'asc' } }, { id: 'asc' }],
     select: { id: true },
   })

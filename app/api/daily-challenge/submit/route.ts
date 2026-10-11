@@ -38,8 +38,23 @@ export async function POST(request: NextRequest) {
     (a) => Number.isInteger(a?.questionId) && questionsById.has(a.questionId)
   )
 
+  // Answers already checked one by one (POST /api/daily-challenge/answers)
+  // were recorded when revealed; those stand, whatever the payload says.
+  const recorded = existing
+    ? await prisma.userQuestionProgress.findMany({
+        where: { userId: user.id, questionId: { in: [...questionsById.keys()] }, attemptedAt: { gte: existing.startedAt } },
+        select: { questionId: true, isCorrect: true },
+      })
+    : []
+  const recordedById = new Map(recorded.map((r) => [r.questionId, r]))
+
   let correctAnswers = 0
   for (const answer of validAnswers) {
+    const recordedAnswer = recordedById.get(answer.questionId)
+    if (recordedAnswer) {
+      if (recordedAnswer.isCorrect) correctAnswers++
+      continue
+    }
     const question = questionsById.get(answer.questionId)!
     const selectedOptionId =
       answer.selectedOptionId === null || answer.selectedOptionId === undefined ? null : Number(answer.selectedOptionId)

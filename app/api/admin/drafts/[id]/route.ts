@@ -30,6 +30,8 @@ export async function PATCH(request: NextRequest, ctx: Context) {
         body.correctAnswer !== undefined ? String(body.correctAnswer).trim().toUpperCase() || null : undefined,
       categoryId: body.categoryId !== undefined ? (body.categoryId === null ? null : Number(body.categoryId)) : undefined,
       status: typeof body.status === 'string' ? body.status : undefined,
+      explanation: body.explanation !== undefined ? String(body.explanation).trim() || null : undefined,
+      revisionPoints: body.revisionPoints !== undefined ? String(body.revisionPoints).trim() || null : undefined,
     },
   })
 

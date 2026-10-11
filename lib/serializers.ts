@@ -1,9 +1,9 @@
-import type { User } from '@prisma/client'
+import type { User, UserProfile } from '@prisma/client'
 
 // Shape of a User handed back to the client on auth responses. Excludes
 // passwordHash and other internal fields; every auth route should build its
 // response through this rather than hand-picking fields itself.
-export function publicUser(user: User) {
+export function publicUser(user: User & { profile?: UserProfile | null }) {
   return {
     id: user.id,
     username: user.username,
@@ -11,6 +11,16 @@ export function publicUser(user: User) {
     phone: user.phone,
     email: user.email,
     state: user.state,
+    profileCompleted: user.profileCompleted ?? false,
+    profile: user.profile
+      ? {
+          fullName: user.profile.fullName,
+          targetExam: user.profile.targetExam,
+          preparationLevel: user.profile.preparationLevel,
+          targetAttempt: user.profile.targetAttempt,
+          preparationFocus: user.profile.preparationFocus,
+        }
+      : null,
     isTestUser: user.isTestUser,
     isPremium: user.isPremium,
   }
@@ -21,6 +31,7 @@ export function publicUser(user: User) {
 // would hand over the answer key before the attempt is complete.
 export const safeQuestionSelect = {
   id: true,
+  questionNo: true,
   text: true,
   questionImage: true,
   categoryId: true,

@@ -48,6 +48,23 @@ model User {
   questionProgress       UserQuestionProgress[]
   dailyChallengeProgress UserDailyChallengeProgress[]
   subscription           Subscription?
+  payments               Payment[]
+  profileCompleted       Boolean                      @default(false)
+  profile                UserProfile?
+}
+
+model UserProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  fullName         String
+  targetExam       String   @default("UPSC_CSE")
+  preparationLevel String
+  targetAttempt    String?
+  preparationFocus String   @default("BOTH")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ==========================================================================
@@ -76,10 +93,49 @@ model Subscription {
   status                 SubscriptionStatus @default(CREATED)
   currentStart           DateTime?
   currentEnd             DateTime?
+  // Autopay bookkeeping, mirrored from Razorpay's subscription entity by the
+  // webhook: when the next automatic charge is due and how many cycles have
+  // been paid so far.
+  chargeAt               DateTime?
+  paidCount              Int                @default(0)
+  // First time this subscription became ACTIVE, and when autopay was stopped
+  // (by the user, an admin, or Razorpay giving up on failed charges).
+  activatedAt            DateTime?
+  cancelledAt            DateTime?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  payments Payment[]
+}
+
+enum PaymentStatus {
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+// One row per Razorpay charge against a subscription (the first payment at
+// checkout and every autopay renewal after it). Written idempotently, keyed
+// on razorpayPaymentId, by verify-subscription and the subscription.charged
+// webhook — whichever arrives first.
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  subscriptionId    String?
+  razorpayPaymentId String        @unique
+  amountPaise       Int
+  currency          String        @default("INR")
+  status            PaymentStatus @default(CAPTURED)
+  method            String?
+  paidAt            DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+
+  user         User          @relation(fields: [userId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId])
+  @@index([paidAt])
 }
 
 // A rotating opaque refresh token, identified to clients by its raw value.
@@ -118,6 +174,7 @@ model Category {
   draftQuestions    DraftQuestion[]
   attemptCategories AttemptCategory[]
   stages            Stage[]
+  sectionAttempts   QuizAttempt[]     @relation("AttemptSection")
 }
 
 // Finer-grained topic within a Category, used by the import/review pipeline.
@@ -171,6 +228,9 @@ model QuestionPaper {
 // or promoted from a DraftQuestion once it clears review.
 model Question {
   id              Int                @id @default(autoincrement())
+  // Position in the original printed paper (Q1, Q2, ...). Null for questions
+  // not taken from a past paper. Full-paper tests are served in this order.
+  questionNo      Int?
   text            String
   explanation     String?
   // Bulleted "remember this" / "also revise" cram points shown alongside the
@@ -197,6 +257,8 @@ model Question {
   dailyChallengeEntries DailyChallengeQuestion[]
 
   createdAt DateTime @default(now())
+
+  @@index([questionPaperId, questionNo])
 }
 
 model Option {
@@ -217,6 +279,15 @@ enum AttemptMode {
   CATEGORY_PRACTICE
 }
 
+// How a FULL_PAPER attempt is run. EXAM mirrors the real Prelims: one overall
+// timer, no feedback until submission, UPSC marking (+2 / -2/3). PRACTICE is
+// untimed and reveals the answer, explanation and revision points after each
+// question. See lib/paper-test.ts.
+enum TestMode {
+  EXAM
+  PRACTICE
+}
+
 enum QuestionDifficulty {
   EASY
   MEDIUM
@@ -225,21 +296,31 @@ enum QuestionDifficulty {
 
 // One quiz session — either replaying a full past paper or a mixed-category practice set.
 model QuizAttempt {
-  id              Int         @id @default(autoincrement())
-  userId          String
-  mode            AttemptMode
-  questionPaperId Int? // set only when mode = FULL_PAPER
-  startedAt       DateTime    @default(now())
-  completedAt     DateTime?
-  totalQuestions  Int
-  correctCount    Int         @default(0)
-  wrongCount      Int         @default(0)
-  skippedCount    Int         @default(0)
+  id                Int         @id @default(autoincrement())
+  userId            String
+  mode              AttemptMode
+  questionPaperId   Int? // set only when mode = FULL_PAPER
+  // FULL_PAPER only: restricts the attempt to one subject section of the
+  // paper (null = the whole paper).
+  sectionCategoryId Int?
+  testMode          TestMode    @default(PRACTICE)
+  // EXAM mode time limit, fixed at creation (see lib/paper-test.ts).
+  durationSeconds   Int?
+  // UPSC-style marks, set on completion: +2 correct, -2/3 wrong, 0 skipped.
+  score             Float?
+  maxScore          Float?
+  startedAt         DateTime    @default(now())
+  completedAt       DateTime?
+  totalQuestions    Int
+  correctCount      Int         @default(0)
+  wrongCount        Int         @default(0)
+  skippedCount      Int         @default(0)
 
-  user          User              @relation(fields: [userId], references: [id])
-  questionPaper QuestionPaper?    @relation(fields: [questionPaperId], references: [id])
-  categories    AttemptCategory[]
-  answers       AttemptAnswer[]
+  user            User              @relation(fields: [userId], references: [id])
+  questionPaper   QuestionPaper?    @relation(fields: [questionPaperId], references: [id])
+  sectionCategory Category?         @relation("AttemptSection", fields: [sectionCategoryId], references: [id])
+  categories      AttemptCategory[]
+  answers         AttemptAnswer[]
 }
 
 // Which categories were selected for a CATEGORY_PRACTICE attempt.

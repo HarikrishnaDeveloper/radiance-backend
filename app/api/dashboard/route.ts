@@ -8,6 +8,7 @@ import { getCategoryProgress } from '@/lib/category-progress'
 import { getContinueLearning } from '@/lib/continue-learning'
 import { getUserStats } from '@/lib/user-stats'
 import { getOrCreateTodayChallenge } from '@/lib/daily-challenge'
+import { getWeakAreas } from '@/lib/weak-areas'
 
 export async function GET(request: NextRequest) {
   const { user, response } = await requireAuth(request)
@@ -23,6 +24,8 @@ export async function GET(request: NextRequest) {
     recentAchievements,
     stats,
     todayChallenge,
+    weakAreas,
+    paperTestsCompleted,
   ] = await Promise.all([
       getActivityDates(prisma, user.id),
       prisma.quizAttempt.findFirst({
@@ -52,6 +55,8 @@ export async function GET(request: NextRequest) {
       }),
       getUserStats(user.id),
       getOrCreateTodayChallenge(prisma),
+      getWeakAreas(user.id),
+      prisma.quizAttempt.count({ where: { userId: user.id, mode: 'FULL_PAPER', completedAt: { not: null } } }),
     ])
 
   const streak = computeStreakFromDates(activityDates)
@@ -66,7 +71,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     streak,
     longestStreak,
-    stats,
+    stats: { ...stats, paperTestsCompleted },
+    weakAreas,
     recentActivity: recentActivityDays(activityDates),
     todaysFocus: {
       answeredToday,

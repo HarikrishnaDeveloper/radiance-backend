@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyWebhookSignature } from '@/lib/razorpay'
 import type { SubscriptionStatus } from '@prisma/client'
+import { AUTOPAY_ON_STATUSES, ENDED_STATUSES as ENDED_STATUS_LIST, recordPayment, unixToDate } from '@/lib/billing'
 
 // Razorpay subscription.* statuses, lowercased, mapped onto our enum.
 const STATUS_MAP: Record<string, SubscriptionStatus> = {
@@ -20,11 +21,8 @@ const STATUS_MAP: Record<string, SubscriptionStatus> = {
 // (halted, cancelled, completed, expired, pending-too-long) revokes it —
 // this is the actual monthly-renewal enforcement: no cron job needed,
 // Razorpay tells us the moment a charge fails or a plan lapses.
-const ACTIVE_STATUSES = new Set<SubscriptionStatus>(['ACTIVE', 'AUTHENTICATED'])
-
-function toDate(unixSeconds: number | null | undefined): Date | null {
-  return typeof unixSeconds === 'number' ? new Date(unixSeconds * 1000) : null
-}
+const ACTIVE_STATUSES = new Set<SubscriptionStatus>(AUTOPAY_ON_STATUSES)
+const ENDED_STATUSES = new Set<SubscriptionStatus>(ENDED_STATUS_LIST)
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text()
@@ -50,20 +48,46 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  await prisma.$transaction([
-    prisma.subscription.update({
+  const autopayOn = ACTIVE_STATUSES.has(status)
+  const ended = ENDED_STATUSES.has(status)
+
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
       where: { id: subscription.id },
       data: {
         status,
-        currentStart: toDate(entity.current_start) ?? subscription.currentStart,
-        currentEnd: toDate(entity.current_end) ?? subscription.currentEnd,
+        currentStart: unixToDate(entity.current_start) ?? subscription.currentStart,
+        currentEnd: unixToDate(entity.current_end) ?? subscription.currentEnd,
+        // No further charges once autopay has ended.
+        chargeAt: ended ? null : (unixToDate(entity.charge_at) ?? subscription.chargeAt),
+        paidCount: typeof entity.paid_count === 'number' ? entity.paid_count : subscription.paidCount,
+        activatedAt: subscription.activatedAt ?? (status === 'ACTIVE' ? new Date() : null),
+        cancelledAt: ended ? (subscription.cancelledAt ?? unixToDate(entity.ended_at) ?? new Date()) : null,
       },
-    }),
-    prisma.user.update({
+    })
+    await tx.user.update({
       where: { id: subscription.userId },
-      data: { isPremium: ACTIVE_STATUSES.has(status) },
-    }),
-  ])
+      data: { isPremium: autopayOn },
+    })
+
+    // subscription.charged (first payment and every autopay renewal) carries
+    // the payment that was just captured alongside the subscription.
+    const payment = payload?.payload?.payment?.entity
+    if (payload?.event === 'subscription.charged' && typeof payment?.id === 'string') {
+      await recordPayment(
+        {
+          userId: subscription.userId,
+          subscriptionId: subscription.id,
+          razorpayPaymentId: payment.id,
+          amountPaise: Number(payment.amount) || 0,
+          currency: typeof payment.currency === 'string' ? payment.currency : 'INR',
+          method: typeof payment.method === 'string' ? payment.method : null,
+          paidAt: unixToDate(payment.created_at) ?? new Date(),
+        },
+        tx
+      )
+    }
+  })
 
   return NextResponse.json({ ok: true })
 }

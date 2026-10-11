@@ -41,7 +41,8 @@ export async function getOrCreateTodayChallenge(prisma: PrismaClient) {
   })
   if (existing) return existing
 
-  const allQuestions = await prisma.question.findMany({ select: { id: true } })
+  // Detached, superseded copies (questionPaperId null) are never picked.
+  const allQuestions = await prisma.question.findMany({ where: { questionPaperId: { not: null } }, select: { id: true } })
   const picked = seededShuffle(allQuestions, challengeDate.toISOString()).slice(0, QUESTIONS_PER_CHALLENGE)
 
   try {
@@ -63,4 +64,54 @@ export async function getOrCreateTodayChallenge(prisma: PrismaClient) {
     }
     throw e
   }
+}
+
+// The answer key and notes for a question shown in today's challenge.
+export const challengeReviewSelect = {
+  id: true,
+  questionNo: true,
+  text: true,
+  questionImage: true,
+  explanation: true,
+  revisionPoints: true,
+  isVoided: true,
+  category: { select: { id: true, name: true } },
+  questionPaper: { select: { year: true } },
+  options: { select: { id: true, label: true, text: true, isCorrect: true }, orderBy: { label: 'asc' as const } },
+} as const
+
+// Each challenge question with the user's answer, the correct option,
+// explanation and review points — the per-question review shown once today's
+// challenge is finished. Answers come from UserQuestionProgress rows written
+// since the user started the challenge (`since`).
+export async function getChallengeReview(
+  prisma: PrismaClient,
+  userId: string,
+  challenge: { questions: { questionId: number }[] },
+  since: Date
+) {
+  const ids = challenge.questions.map((q) => q.questionId)
+  const [questions, progress] = await Promise.all([
+    prisma.question.findMany({ where: { id: { in: ids } }, select: challengeReviewSelect }),
+    prisma.userQuestionProgress.findMany({
+      where: { userId, questionId: { in: ids }, attemptedAt: { gte: since } },
+      select: { questionId: true, selectedOption: true, isCorrect: true },
+    }),
+  ])
+  const byId = new Map(questions.map((q) => [q.id, q]))
+  const answerById = new Map(progress.map((p) => [p.questionId, p]))
+
+  return ids.flatMap((id) => {
+    const q = byId.get(id)
+    if (!q) return []
+    const answer = answerById.get(id)
+    return [
+      {
+        ...q,
+        correctOptionId: q.options.find((o) => o.isCorrect)?.id ?? null,
+        selectedOptionId: answer?.selectedOption ?? null,
+        isCorrect: answer ? answer.isCorrect : q.isVoided,
+      },
+    ]
+  })
 }

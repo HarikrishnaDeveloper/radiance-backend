@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { safeQuestionSelect } from '@/lib/serializers'
-import { getOrCreateTodayChallenge } from '@/lib/daily-challenge'
+import { getChallengeReview, getOrCreateTodayChallenge } from '@/lib/daily-challenge'
 
 export async function GET(request: NextRequest) {
   const { user, response } = await requireAuth(request)
@@ -21,6 +21,12 @@ export async function GET(request: NextRequest) {
     }),
   ])
 
+  // Once finished, every question comes back with its answer, explanation
+  // and review points so today's challenge can be reviewed.
+  const review = progress?.completedAt
+    ? await getChallengeReview(prisma, user.id, challenge, progress.startedAt)
+    : null
+
   const questionsById = new Map(questions.map((q) => [q.id, q]))
   const orderedQuestions = challenge.questions.map((cq) => questionsById.get(cq.questionId)).filter(Boolean)
 
@@ -37,5 +43,6 @@ export async function GET(request: NextRequest) {
           completedAt: progress.completedAt,
         }
       : null,
+    review,
   })
 }

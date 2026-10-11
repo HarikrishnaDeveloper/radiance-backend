@@ -67,6 +67,7 @@ export async function promotePaper(
     const isVoided = !dq.correctAnswer
     await prisma.question.create({
       data: {
+        questionNo: dq.questionNo,
         text: dq.text,
         explanation: dq.explanation || null,
         revisionPoints: dq.revisionPoints || null,
