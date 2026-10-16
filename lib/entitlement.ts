@@ -6,7 +6,13 @@ import { prisma } from '@/lib/prisma'
 // per-subject one.
 export const FREE_STAGE_LIMIT = 2
 
+// While the app is in testing, nothing is paywalled: every user gets full
+// access to all stages and papers. Set PAYMENTS_ENABLED=true to restore the
+// free-stage budget and subscription gating.
+export const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === 'true'
+
 export async function hasFullAccess(userId: string): Promise<boolean> {
+  if (!PAYMENTS_ENABLED) return true
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { isTestUser: true, isPremium: true },

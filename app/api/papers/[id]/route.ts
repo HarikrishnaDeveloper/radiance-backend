@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
+import { PAYMENTS_ENABLED } from '@/lib/entitlement'
 import {
   MARKS_CORRECT,
   MARKS_WRONG,
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest, ctx: Context) {
     durationSeconds: PAPER_DURATION_SECONDS,
     marking: { correct: MARKS_CORRECT, wrong: roundMarks(MARKS_WRONG), maxScore: total * MARKS_CORRECT },
     locked: !accessible,
-    isFree: paper.year === freeYear,
+    isFree: PAYMENTS_ENABLED && paper.year === freeYear,
     sections: sections.map((s) => ({
       ...s,
       inProgressAttemptId: inProgress.find((a) => a.sectionCategoryId === s.categoryId)?.id ?? null,

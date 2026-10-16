@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
-import { hasFullAccess } from '@/lib/entitlement'
+import { PAYMENTS_ENABLED, hasFullAccess } from '@/lib/entitlement'
 import { PAPER_DURATION_SECONDS } from '@/lib/paper-test'
 
 export async function GET(request: NextRequest) {
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         questionCount: p._count.questions,
         durationSeconds: PAPER_DURATION_SECONDS,
         locked: !fullAccess && p.year !== freeYear,
-        isFree: p.year === freeYear,
+        isFree: PAYMENTS_ENABLED && p.year === freeYear,
         attemptCount: mine.filter((a) => a.completedAt).length,
         bestScore: best ? { score: best.score, maxScore: best.maxScore, attemptId: best.id } : null,
         inProgressAttemptId: inProgress?.id ?? null,

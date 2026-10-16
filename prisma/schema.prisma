@@ -51,6 +51,50 @@ model User {
   payments               Payment[]
   profileCompleted       Boolean                      @default(false)
   profile                UserProfile?
+  studyPlanGoals         StudyPlanGoal[]
+  dailyTasks             DailyTask[]
+}
+
+// ==========================================================================
+// Study plan — recurring daily goals the student configures ("clear 2 stages
+// a day"). Each day's tasks are snapshotted into DailyTask the first time
+// that day is read (no cron, same as DailyChallenge), so editing the plan
+// changes today and later days but never rewrites past reports. Progress is
+// always derived from real activity on that day — see lib/study-plan.ts.
+// ==========================================================================
+
+enum StudyGoalType {
+  STAGES // complete N category practice stages
+  QUESTIONS // answer N questions (any practice mode)
+  DAILY_CHALLENGE // finish the daily challenge
+  FULL_TEST // complete N full-paper tests
+}
+
+model StudyPlanGoal {
+  id        Int           @id @default(autoincrement())
+  userId    String
+  type      StudyGoalType
+  target    Int
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+}
+
+model DailyTask {
+  id     Int           @id @default(autoincrement())
+  userId String
+  // UTC calendar day (midnight), matching how streaks bucket activity.
+  date   DateTime      @db.Date
+  type   StudyGoalType
+  target Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date, type])
+  @@index([userId, date])
 }
 
 model UserProfile {
