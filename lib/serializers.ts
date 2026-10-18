@@ -19,6 +19,8 @@ export function publicUser(user: User & { profile?: UserProfile | null }) {
           preparationLevel: user.profile.preparationLevel,
           targetAttempt: user.profile.targetAttempt,
           preparationFocus: user.profile.preparationFocus,
+          referralSource: user.profile.referralSource,
+          preparationDuration: user.profile.preparationDuration,
         }
       : null,
     isTestUser: user.isTestUser,

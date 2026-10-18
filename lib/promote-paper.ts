@@ -48,8 +48,12 @@ export async function promotePaper(
     select: { id: true },
   })
   const existingIds = existing.map((q) => q.id)
-  await prisma.option.deleteMany({ where: { questionId: { in: existingIds } } })
-  await prisma.question.deleteMany({ where: { id: { in: existingIds } } })
+  // One transaction: if the questions can't go (users have answered them),
+  // their options must not be left deleted either.
+  await prisma.$transaction([
+    prisma.option.deleteMany({ where: { questionId: { in: existingIds } } }),
+    prisma.question.deleteMany({ where: { id: { in: existingIds } } }),
+  ])
 
   const draftQuestions = await prisma.draftQuestion.findMany({
     where: { paperId: paper.id, status: 'APPROVED' },

@@ -18,6 +18,9 @@ export async function PATCH(request: NextRequest) {
   const targetAttempt = body?.targetAttempt
   const preparationFocus = body?.preparationFocus ?? 'BOTH'
   const state = body?.state
+  const referralSource = typeof body?.referralSource === 'string' ? body.referralSource.trim() || null : undefined
+  const preparationDuration =
+    typeof body?.preparationDuration === 'string' ? body.preparationDuration.trim() || null : undefined
 
   if (!fullName || typeof fullName !== 'string' || !fullName.trim()) {
     return NextResponse.json({ error: 'Full name is required' }, { status: 400 })
@@ -64,6 +67,8 @@ export async function PATCH(request: NextRequest) {
           preparationLevel: String(preparationLevel).trim(),
           targetAttempt: trimmedTargetAttempt,
           preparationFocus: String(preparationFocus).trim(),
+          ...(referralSource !== undefined && { referralSource }),
+          ...(preparationDuration !== undefined && { preparationDuration }),
         },
         create: {
           userId: user.id,
@@ -72,6 +77,8 @@ export async function PATCH(request: NextRequest) {
           preparationLevel: String(preparationLevel).trim(),
           targetAttempt: trimmedTargetAttempt,
           preparationFocus: String(preparationFocus).trim(),
+          referralSource: referralSource ?? null,
+          preparationDuration: preparationDuration ?? null,
         },
       })
 

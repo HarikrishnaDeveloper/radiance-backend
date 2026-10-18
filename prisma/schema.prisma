@@ -105,6 +105,11 @@ model UserProfile {
   preparationLevel String
   targetAttempt    String?
   preparationFocus String   @default("BOTH")
+  // Onboarding answers: where they heard about Radiance (INSTAGRAM_FACEBOOK,
+  // FRIENDS, GOOGLE, OTHER) and how long they've prepared (NEW, UNDER_1_YEAR,
+  // ONE_TO_THREE_YEARS, OVER_3_YEARS).
+  referralSource      String?
+  preparationDuration String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

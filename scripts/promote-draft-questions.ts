@@ -20,6 +20,16 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const papers = await prisma.paper.findMany({ orderBy: [{ year: "asc" }, { name: "asc" }] });
   for (const paper of papers) {
+    // Promoting wipes and rebuilds a paper's live questions, which fails once
+    // anyone has answered them. Papers already live are updated in place by
+    // scripts/sync-paper-questions.ts instead (seed-all runs it next).
+    const live = await prisma.question.count({
+      where: { questionPaper: { year: paper.year, examType: { code: `PRELIMS_${paper.name}` } } },
+    });
+    if (live > 0) {
+      console.log(`${paper.year} ${paper.name}: already live (${live} questions), left to sync-paper-questions`);
+      continue;
+    }
     const { promoted, total, skipped } = await promotePaper(prisma, paper);
     for (const questionNo of skipped) {
       console.warn(`  Skipping ${paper.year} ${paper.name} Q${questionNo}: incomplete data`);
