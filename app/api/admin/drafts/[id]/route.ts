@@ -50,3 +50,20 @@ function imagePath(value: unknown): string | null | undefined {
   const path = String(value ?? '').trim()
   return path.startsWith('/') ? path : null
 }
+
+// Deletes a draft question. Its live copy (if it was promoted) comes off the
+// paper on the next promote — see lib/promote-paper.ts.
+export async function DELETE(request: NextRequest, ctx: Context) {
+  const denied = requireAdminApiKey(request)
+  if (denied) return denied
+
+  const { id } = await ctx.params
+  const draftId = Number(id)
+  if (!Number.isInteger(draftId)) {
+    return NextResponse.json({ error: 'Invalid draft id' }, { status: 400 })
+  }
+
+  const deleted = await prisma.draftQuestion.deleteMany({ where: { id: draftId } })
+  if (deleted.count === 0) return NextResponse.json({ error: 'Question not found' }, { status: 404 })
+  return NextResponse.json({ deleted: true })
+}

@@ -22,7 +22,40 @@ export async function GET(request: NextRequest, ctx: Context) {
   })
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const completedStages = await prisma.userStageProgress.count({ where: { userId: id, status: 'COMPLETED' } })
+  const [completedStages, stageRows, questionStats, bookmarks, recentAttempts, challengesCompleted, goals] = await Promise.all([
+    prisma.userStageProgress.count({ where: { userId: id, status: 'COMPLETED' } }),
+    prisma.userStageProgress.findMany({
+      where: { userId: id },
+      select: { status: true, accuracy: true, starsEarned: true, stage: { select: { category: { select: { name: true } } } } },
+    }),
+    prisma.userQuestionProgress.groupBy({ by: ['isCorrect'], where: { userId: id }, _count: { _all: true } }),
+    prisma.userQuestionProgress.count({ where: { userId: id, bookmarked: true } }),
+    prisma.quizAttempt.findMany({
+      where: { userId: id },
+      orderBy: { startedAt: 'desc' },
+      take: 10,
+      include: {
+        questionPaper: { select: { year: true, examType: { select: { name: true } } } },
+        sectionCategory: { select: { name: true } },
+      },
+    }),
+    prisma.userDailyChallengeProgress.count({ where: { userId: id, completedAt: { not: null } } }),
+    prisma.studyPlanGoal.findMany({ where: { userId: id }, select: { type: true, target: true }, orderBy: { type: 'asc' } }),
+  ])
+
+  // Stage progress per subject, for the "Learning" section of the user page.
+  const bySubject = new Map<string, { subject: string; started: number; completed: number; stars: number; accuracySum: number }>()
+  for (const row of stageRows) {
+    const subject = row.stage.category.name
+    const entry = bySubject.get(subject) ?? { subject, started: 0, completed: 0, stars: 0, accuracySum: 0 }
+    entry.started++
+    if (row.status === 'COMPLETED') entry.completed++
+    entry.stars += row.starsEarned
+    entry.accuracySum += row.accuracy
+    bySubject.set(subject, entry)
+  }
+  const answered = questionStats.reduce((n, g) => n + g._count._all, 0)
+  const correct = questionStats.find((g) => g.isCorrect)?._count._all ?? 0
 
   return NextResponse.json({
     id: user.id,
@@ -38,7 +71,37 @@ export async function GET(request: NextRequest, ctx: Context) {
       preparationLevel: user.profile.preparationLevel,
       targetAttempt: user.profile.targetAttempt,
       preparationFocus: user.profile.preparationFocus,
+      referralSource: user.profile.referralSource,
+      preparationDuration: user.profile.preparationDuration,
     } : null,
+    dateOfBirth: user.dateOfBirth,
+    phoneVerifiedAt: user.phoneVerifiedAt,
+    learning: {
+      questionsAnswered: answered,
+      questionsCorrect: correct,
+      bookmarks,
+      dailyChallengesCompleted: challengesCompleted,
+      streakFreezesAvailable: user.streakFreezesAvailable,
+      streakFreezesUsed: user.streakFreezesUsed,
+      goals,
+      subjects: [...bySubject.values()]
+        .map(({ accuracySum, ...s }) => ({ ...s, accuracy: s.started ? accuracySum / s.started : 0 }))
+        .sort((a, b) => b.started - a.started),
+      recentAttempts: recentAttempts.map((a) => ({
+        id: a.id,
+        mode: a.mode,
+        testMode: a.testMode,
+        paper: a.questionPaper ? { year: a.questionPaper.year, name: a.questionPaper.examType.name } : null,
+        section: a.sectionCategory?.name ?? null,
+        totalQuestions: a.totalQuestions,
+        correctCount: a.correctCount,
+        wrongCount: a.wrongCount,
+        score: a.score,
+        maxScore: a.maxScore,
+        startedAt: a.startedAt,
+        completedAt: a.completedAt,
+      })),
+    },
     isTestUser: user.isTestUser,
     isPremium: user.isPremium,
     createdAt: user.createdAt,
