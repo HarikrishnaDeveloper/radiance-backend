@@ -11,7 +11,7 @@ const EXAM_TYPE_NAMES: Record<string, string> = {
 // review (see ReviewQueue) is left out until it's resolved. Questions with no
 // correctAnswer (voided) are still promoted so paper question counts stay accurate;
 // they're scored as correct for everyone. Safe to re-run: this paper's live
-// questions are wiped and rebuilt from its current draft state.
+// questions are updated in place from its current draft state (see below).
 //
 // Shared by scripts/promote-draft-questions.ts (promotes every paper) and
 // app/api/admin/papers/[id]/promote (promotes one, from the review UI).
@@ -43,17 +43,18 @@ export async function promotePaper(
     },
   })
 
+  // Live questions are updated in place, matched by questionNo, never wiped
+  // and recreated: stages, attempts, daily challenges and user progress all
+  // point at question/option ids, so those ids must survive a re-promote.
   const existing = await prisma.question.findMany({
     where: { questionPaperId: questionPaper.id },
-    select: { id: true },
+    select: { id: true, questionNo: true },
+    orderBy: { id: 'asc' },
   })
-  const existingIds = existing.map((q) => q.id)
-  // One transaction: if the questions can't go (users have answered them),
-  // their options must not be left deleted either.
-  await prisma.$transaction([
-    prisma.option.deleteMany({ where: { questionId: { in: existingIds } } }),
-    prisma.question.deleteMany({ where: { id: { in: existingIds } } }),
-  ])
+  const liveByNo = new Map<number, number>()
+  for (const q of existing) {
+    if (q.questionNo !== null && !liveByNo.has(q.questionNo)) liveByNo.set(q.questionNo, q.id)
+  }
 
   const draftQuestions = await prisma.draftQuestion.findMany({
     where: { paperId: paper.id, status: 'APPROVED' },
@@ -62,36 +63,68 @@ export async function promotePaper(
 
   let promoted = 0
   const skipped: number[] = []
+  const kept = new Set<number>()
   for (const dq of draftQuestions) {
-    if (!dq.optionA || !dq.optionB || !dq.optionC || !dq.optionD || !dq.categoryId) {
+    // An option may be text, a picture, or both — it just can't be neither.
+    const options = (['A', 'B', 'C', 'D'] as const).map((label) => ({
+      label,
+      text: dq[`option${label}`] ?? '',
+      imageUrl: dq[`option${label}Image`] || null,
+      isCorrect: dq.correctAnswer === label,
+    }))
+    if (!dq.text.trim() || options.some((o) => !o.text && !o.imageUrl) || !dq.categoryId) {
       skipped.push(dq.questionNo)
       continue
     }
 
-    const isVoided = !dq.correctAnswer
-    await prisma.question.create({
-      data: {
-        questionNo: dq.questionNo,
-        text: dq.text,
-        explanation: dq.explanation || null,
-        revisionPoints: dq.revisionPoints || null,
-        categoryId: dq.categoryId,
-        questionPaperId: questionPaper.id,
-        isVoided,
-        questionImage: dq.questionImage,
-        options: {
-          create: [
-            { label: 'A', text: dq.optionA, isCorrect: dq.correctAnswer === 'A' },
-            { label: 'B', text: dq.optionB, isCorrect: dq.correctAnswer === 'B' },
-            { label: 'C', text: dq.optionC, isCorrect: dq.correctAnswer === 'C' },
-            { label: 'D', text: dq.optionD, isCorrect: dq.correctAnswer === 'D' },
-          ],
-        },
-      },
-    })
+    const data = {
+      questionNo: dq.questionNo,
+      text: dq.text,
+      explanation: dq.explanation || null,
+      revisionPoints: dq.revisionPoints || null,
+      categoryId: dq.categoryId,
+      questionPaperId: questionPaper.id,
+      isVoided: !dq.correctAnswer,
+      questionImage: dq.questionImage,
+    }
+
+    const liveId = liveByNo.get(dq.questionNo)
+    if (liveId === undefined) {
+      await prisma.question.create({ data: { ...data, options: { create: options } } })
+    } else {
+      kept.add(liveId)
+      await prisma.$transaction([
+        prisma.question.update({ where: { id: liveId }, data }),
+        ...options.map(({ label, ...option }) =>
+          prisma.option.upsert({
+            where: { questionId_label: { questionId: liveId, label } },
+            update: option,
+            create: { ...option, label, questionId: liveId },
+          })
+        ),
+      ])
+    }
     promoted++
   }
 
+  // Live questions with no approved draft any more come off the paper. One
+  // already used by a stage, attempt, challenge or user progress can't be
+  // deleted without destroying that history, so it stays and is reported.
+  const retained: number[] = []
+  for (const q of existing) {
+    if (kept.has(q.id)) continue
+    try {
+      // One transaction: if the question can't go, its options must stay too.
+      await prisma.$transaction([
+        prisma.option.deleteMany({ where: { questionId: q.id } }),
+        prisma.question.delete({ where: { id: q.id } }),
+      ])
+    } catch (e) {
+      if ((e as { code?: string }).code !== 'P2003') throw e
+      retained.push(q.questionNo ?? q.id)
+    }
+  }
+
   const total = await prisma.draftQuestion.count({ where: { paperId: paper.id } })
-  return { promoted, total, skipped }
+  return { promoted, total, skipped, retained }
 }

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, ctx: Context) {
               explanation: true,
               revisionPoints: true,
               options: {
-                select: { id: true, label: true, text: true, isCorrect: true },
+                select: { id: true, label: true, text: true, imageUrl: true, isCorrect: true },
                 orderBy: { label: 'asc' as const },
               },
             },

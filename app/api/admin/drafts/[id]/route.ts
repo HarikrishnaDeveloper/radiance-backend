@@ -26,6 +26,11 @@ export async function PATCH(request: NextRequest, ctx: Context) {
       optionB: body.optionB !== undefined ? String(body.optionB).trim() || null : undefined,
       optionC: body.optionC !== undefined ? String(body.optionC).trim() || null : undefined,
       optionD: body.optionD !== undefined ? String(body.optionD).trim() || null : undefined,
+      questionImage: imagePath(body.questionImage),
+      optionAImage: imagePath(body.optionAImage),
+      optionBImage: imagePath(body.optionBImage),
+      optionCImage: imagePath(body.optionCImage),
+      optionDImage: imagePath(body.optionDImage),
       correctAnswer:
         body.correctAnswer !== undefined ? String(body.correctAnswer).trim().toUpperCase() || null : undefined,
       categoryId: body.categoryId !== undefined ? (body.categoryId === null ? null : Number(body.categoryId)) : undefined,
@@ -36,4 +41,12 @@ export async function PATCH(request: NextRequest, ctx: Context) {
   })
 
   return NextResponse.json(updated)
+}
+
+// Image fields hold a path on this server (from /api/admin/uploads, or an
+// existing /images/... file); "" or null clears the image.
+function imagePath(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined
+  const path = String(value ?? '').trim()
+  return path.startsWith('/') ? path : null
 }

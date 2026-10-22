@@ -25,7 +25,7 @@ export const fullQuestionSelect = {
   category: { select: { id: true, name: true } },
   questionPaper: { select: { year: true } },
   options: {
-    select: { id: true, label: true, text: true, isCorrect: true },
+    select: { id: true, label: true, text: true, imageUrl: true, isCorrect: true },
     orderBy: { label: 'asc' as const },
   },
 } as const

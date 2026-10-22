@@ -28,7 +28,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.json({}, { headers: corsHeaders })
   }
 
-  const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
+  // Only JSON bodies are logged — multipart uploads would dump raw image bytes.
+  const hasBody =
+    request.method !== 'GET' &&
+    request.method !== 'HEAD' &&
+    (request.headers.get('content-type') ?? '').includes('application/json')
   const body = hasBody ? await request.clone().text().catch(() => '') : ''
   console.log(`--> ${request.method} ${request.nextUrl.pathname}${body ? ' ' + redact(body) : ''}`)
 

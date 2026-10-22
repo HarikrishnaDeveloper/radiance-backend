@@ -77,7 +77,7 @@ export const challengeReviewSelect = {
   isVoided: true,
   category: { select: { id: true, name: true } },
   questionPaper: { select: { year: true } },
-  options: { select: { id: true, label: true, text: true, isCorrect: true }, orderBy: { label: 'asc' as const } },
+  options: { select: { id: true, label: true, text: true, imageUrl: true, isCorrect: true }, orderBy: { label: 'asc' as const } },
 } as const
 
 // Each challenge question with the user's answer, the correct option,

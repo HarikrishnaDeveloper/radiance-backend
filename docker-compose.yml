@@ -16,7 +16,12 @@ services:
       - "3002:3000"
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/radience?schema=public
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      # Images uploaded from radiance-admin — must outlive the container.
+      - uploads:/app/uploads
     depends_on:
       - db
 volumes:
   pgdata:
+  uploads:

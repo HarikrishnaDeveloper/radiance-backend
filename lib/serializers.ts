@@ -41,7 +41,7 @@ export const safeQuestionSelect = {
   category: { select: { id: true, name: true } },
   questionPaper: { select: { year: true } },
   options: {
-    select: { id: true, label: true, text: true },
+    select: { id: true, label: true, text: true, imageUrl: true },
     orderBy: { label: 'asc' as const },
   },
 } as const

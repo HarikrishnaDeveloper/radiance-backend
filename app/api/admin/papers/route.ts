@@ -30,3 +30,34 @@ export async function GET(request: NextRequest) {
     }))
   )
 }
+
+// Paper names promotePaper knows how to map onto a live exam type.
+const PAPER_NAMES = ['GS1', 'CSAT']
+
+// Creates an empty paper; questions are then added to it from the review page.
+export async function POST(request: NextRequest) {
+  const denied = requireAdminApiKey(request)
+  if (denied) return denied
+
+  const body = await request.json().catch(() => null)
+  const year = Number(body?.year)
+  const name = String(body?.name ?? '').trim().toUpperCase()
+  const set = String(body?.set ?? '').trim().toUpperCase() || null
+  if (!Number.isInteger(year) || year < 1950 || year > 2100) {
+    return NextResponse.json({ error: 'Enter a valid year' }, { status: 400 })
+  }
+  if (!PAPER_NAMES.includes(name)) {
+    return NextResponse.json({ error: `Paper must be one of ${PAPER_NAMES.join(', ')}` }, { status: 400 })
+  }
+
+  // Live papers are keyed by exam + year only (QuestionPaper), so a second set
+  // of the same year would overwrite the first one's live questions on promote.
+  const sameYear = await prisma.paper.findFirst({ where: { year, name } })
+  if (sameYear) {
+    const label = `${year} ${name}${sameYear.set ? ` (Set ${sameYear.set})` : ''}`
+    return NextResponse.json({ error: `${label} already exists — add questions to it instead` }, { status: 409 })
+  }
+
+  const paper = await prisma.paper.create({ data: { year, name, set } })
+  return NextResponse.json(paper, { status: 201 })
+}

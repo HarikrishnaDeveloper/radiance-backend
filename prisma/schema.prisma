@@ -315,6 +315,9 @@ model Option {
   questionId Int
   label      String // "A", "B", "C", "D"
   text       String
+  // Optional picture for the option (a map, chart, diagram) — a path on this
+  // server such as /uploads/abc.png. `text` may be empty when this is set.
+  imageUrl   String?
   isCorrect  Boolean @default(false)
 
   question          Question        @relation(fields: [questionId], references: [id])
@@ -560,6 +563,10 @@ model DraftQuestion {
   optionB       String?
   optionC       String?
   optionD       String?
+  optionAImage  String?
+  optionBImage  String?
+  optionCImage  String?
+  optionDImage  String?
   correctAnswer String?
 
   explanation       String?

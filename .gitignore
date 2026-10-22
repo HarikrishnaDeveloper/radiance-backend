@@ -48,3 +48,5 @@ scripts/generate-*.js
 scripts/generate-*.ts
 scripts/parse-*.js
 scripts/parse-*.ts
+# images uploaded from radiance-admin (see lib/uploads.ts)
+/uploads

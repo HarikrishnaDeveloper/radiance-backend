@@ -37,9 +37,19 @@ export async function PATCH(request: NextRequest, ctx: Context) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
 
+  const name = typeof body.name === 'string' ? body.name.trim() : undefined
+  if (name !== undefined) {
+    if (!name) return NextResponse.json({ error: 'Category name is required' }, { status: 400 })
+    const clash = await prisma.category.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' }, id: { not: categoryId } },
+    })
+    if (clash) return NextResponse.json({ error: `A category named "${clash.name}" already exists` }, { status: 409 })
+  }
+
   const updated = await prisma.category.update({
     where: { id: categoryId },
     data: {
+      name,
       foodWorldName: body.foodWorldName !== undefined ? String(body.foodWorldName).trim() || null : undefined,
       icon: body.icon !== undefined ? String(body.icon).trim() || null : undefined,
       color: body.color !== undefined ? String(body.color).trim() || null : undefined,

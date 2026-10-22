@@ -19,6 +19,6 @@ export async function POST(request: NextRequest, ctx: Context) {
   const paper = await prisma.paper.findUnique({ where: { id: paperId } })
   if (!paper) return NextResponse.json({ error: 'Paper not found' }, { status: 404 })
 
-  const { promoted, total, skipped } = await promotePaper(prisma, paper)
-  return NextResponse.json({ promoted, total, skipped })
+  const { promoted, total, skipped, retained } = await promotePaper(prisma, paper)
+  return NextResponse.json({ promoted, total, skipped, retained })
 }
