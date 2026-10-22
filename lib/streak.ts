@@ -61,12 +61,13 @@ export function getNextMilestone(streak: number): number {
   return STREAK_MILESTONES.find((m) => m > streak) ?? (Math.floor(streak / 100) + 1) * 100
 }
 
-export type DayStatus = 'done' | 'today' | 'future' | 'missed'
+// 'before': a day before the user signed up — never shown as missed.
+export type DayStatus = 'done' | 'today' | 'future' | 'missed' | 'before'
 
 // The current calendar week, Monday first, for the streak page's week strip.
 // `dateStrings` should already include any auto-frozen dates so a
 // freeze-covered miss still shows as "done".
-export function buildWeekStrip(dateStrings: Set<string>, today: Date): { label: string; status: DayStatus }[] {
+export function buildWeekStrip(dateStrings: Set<string>, today: Date, joinedAt?: Date): { label: string; status: DayStatus }[] {
   const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const utcToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
   const jsDay = utcToday.getUTCDay() // 0 = Sun .. 6 = Sat
@@ -74,6 +75,7 @@ export function buildWeekStrip(dateStrings: Set<string>, today: Date): { label: 
   const monday = new Date(utcToday)
   monday.setUTCDate(monday.getUTCDate() + mondayOffset)
   const todayStr = utcToday.toISOString().slice(0, 10)
+  const joinedStr = joinedAt?.toISOString().slice(0, 10)
 
   const result: { label: string; status: DayStatus }[] = []
   for (let i = 0; i < 7; i++) {
@@ -84,6 +86,7 @@ export function buildWeekStrip(dateStrings: Set<string>, today: Date): { label: 
     let status: DayStatus
     if (str === todayStr) status = 'today'
     else if (d.getTime() > utcToday.getTime()) status = 'future'
+    else if (joinedStr && str < joinedStr && !dateStrings.has(str)) status = 'before'
     else status = dateStrings.has(str) ? 'done' : 'missed'
 
     result.push({ label: labels[i], status })

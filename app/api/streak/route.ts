@@ -3,7 +3,15 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { getActivityDates } from '@/lib/user-activity'
-import { applyAutoStreakFreeze } from '@/lib/streak-freeze'
+import {
+  applyAutoStreakFreeze,
+  canCompleteWithoutPayment,
+  getFreezeSettings,
+  nextRefillDate,
+  purchaseBlockedReason,
+  refillMonthlyFreezes,
+  restoreOffer,
+} from '@/lib/streak-freeze'
 import {
   buildMonthCalendar,
   buildWeekStrip,
@@ -19,11 +27,20 @@ export async function GET(request: NextRequest) {
   const realActivityDates = await getActivityDates(prisma, user.id)
   const realDateStrings = new Set(realActivityDates.map((d) => d.toISOString().slice(0, 10)))
 
+  const settings = await getFreezeSettings(prisma)
+  await refillMonthlyFreezes(prisma, user.id, settings.freePerMonth)
   await applyAutoStreakFreeze(prisma, user.id, realDateStrings)
 
   const fresh = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { createdAt: true, streakFreezesAvailable: true, streakFreezesUsed: true, frozenDates: true },
+    select: {
+      createdAt: true,
+      isTestUser: true,
+      streakFreezesAvailable: true,
+      paidStreakFreezes: true,
+      streakFreezesUsed: true,
+      frozenDates: true,
+    },
   })
   if (!fresh) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
@@ -44,10 +61,25 @@ export async function GET(request: NextRequest) {
     longestStreak,
     totalActiveDays,
     daysKeptPercent,
-    freezesAvailable: fresh.streakFreezesAvailable,
+    // Total left (free + bought) — kept for older app versions.
+    freezesAvailable: fresh.streakFreezesAvailable + fresh.paidStreakFreezes,
     freezesUsed: fresh.streakFreezesUsed,
+    freezes: {
+      free: fresh.streakFreezesAvailable,
+      freePerMonth: settings.freePerMonth,
+      paid: fresh.paidStreakFreezes,
+      maxPaid: settings.maxPaid,
+      refillsOn: nextRefillDate(today).toISOString(),
+      pricePaise: settings.pricePaise,
+      // Null when buying is allowed right now, else why not.
+      purchaseBlockedReason: purchaseBlockedReason(fresh, settings),
+      // False until Razorpay is connected (except test accounts / mock mode).
+      paymentsEnabled: canCompleteWithoutPayment(fresh),
+    },
+    // Set when yesterday's miss just broke a streak with no freeze left to save it.
+    restore: restoreOffer(realDateStrings, fresh.frozenDates, fresh.streakFreezesAvailable + fresh.paidStreakFreezes),
     nextMilestone: getNextMilestone(streak),
-    weekStrip: buildWeekStrip(dateStrings, today),
+    weekStrip: buildWeekStrip(dateStrings, today, fresh.createdAt),
     calendar: {
       year: today.getUTCFullYear(),
       month: today.getUTCMonth(),

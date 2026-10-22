@@ -29,7 +29,14 @@ model User {
   // missed. `frozenDates` records which calendar days were auto-covered by
   // a freeze, so streak/calendar computations can treat them as active days
   // without them counting toward "real" activity stats. See lib/streak-freeze.ts.
+  //
+  // `streakFreezesAvailable` is this month's free allowance: refilled to 2 on
+  // the first visit of each month (`freezesRefilledFor` = "YYYY-MM"), unused
+  // ones don't roll over. `paidStreakFreezes` are bought (₹5 each) once the
+  // free ones are gone and never expire. Free ones are spent first.
   streakFreezesAvailable Int        @default(2)
+  paidStreakFreezes      Int        @default(0)
+  freezesRefilledFor     String?
   streakFreezesUsed      Int        @default(0)
   frozenDates            DateTime[] @default([])
 
@@ -49,6 +56,8 @@ model User {
   dailyChallengeProgress UserDailyChallengeProgress[]
   subscription           Subscription?
   payments               Payment[]
+  streakFreezePurchases  StreakFreezePurchase[]
+  streakFreezeUses       StreakFreezeUse[]
   profileCompleted       Boolean                      @default(false)
   profile                UserProfile?
   studyPlanGoals         StudyPlanGoal[]
@@ -185,6 +194,68 @@ model Payment {
 
   @@index([userId])
   @@index([paidAt])
+}
+
+// ==========================================================================
+// Streak freezes — see lib/streak-freeze.ts
+// ==========================================================================
+
+// The streak freeze rules, editable from the admin panel. A single row
+// (id 1); when it's missing the defaults below apply.
+model StreakFreezeSettings {
+  id           Int      @id @default(1)
+  freePerMonth Int      @default(2)
+  pricePaise   Int      @default(500)
+  maxPaid      Int      @default(5)
+  updatedAt    DateTime @updatedAt
+}
+
+enum StreakFreezePurchaseStatus {
+  CREATED
+  PAID
+  FAILED
+}
+
+// One order for bought streak freezes (₹5 each). Created when the student
+// taps "buy", marked PAID once payment is confirmed (Razorpay order + payment
+// ids are filled in then), which adds `quantity` to User.paidStreakFreezes.
+model StreakFreezePurchase {
+  id                String                     @id @default(cuid())
+  userId            String
+  quantity          Int                        @default(1)
+  amountPaise       Int
+  status            StreakFreezePurchaseStatus @default(CREATED)
+  // Bought from the "restore your streak" offer rather than to stock up.
+  forRestore        Boolean                    @default(false)
+  razorpayOrderId   String?                    @unique
+  razorpayPaymentId String?                    @unique
+  createdAt         DateTime                   @default(now())
+  paidAt            DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum StreakFreezeSource {
+  FREE
+  PAID
+}
+
+// One row each time a freeze covers a missed day — free or bought — so the
+// admin panel can chart usage over time.
+model StreakFreezeUse {
+  id        String             @id @default(cuid())
+  userId    String
+  day       DateTime
+  source    StreakFreezeSource
+  createdAt DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 // A rotating opaque refresh token, identified to clients by its raw value.
